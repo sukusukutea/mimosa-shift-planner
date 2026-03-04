@@ -19,6 +19,7 @@ Rails.application.routes.draw do
       patch :update_settings    # /shift_months/:id/update_settings
 
       patch :update_weekday_requirements
+      post :sync_weekday_requirements
       patch :update_daily
 
       post :update_designation

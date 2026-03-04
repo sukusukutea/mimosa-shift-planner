@@ -1,4 +1,30 @@
 <% toolbar = capture do %>
+  <% if params[:stale_weekday_req].to_s == "1" %>
+    <div class="alert alert-warning py-2 px-3 mb-3">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div>
+          <strong>曜日別人員配置の元設定が更新されています。</strong><br>
+          この月は古い曜日別設定で作成されています。同期しますか？<br>
+          <span class="small text-muted">
+            ※このシフトですでに設定済みの休日設定・日別調整は、そのまま残ります。
+          </span>
+        </div>
+
+        <div class="ms-auto d-flex gap-2">
+          <%= link_to "この月はそのまま",
+                      settings_shift_month_path(@shift_month),
+                      class: "btn btn-sm btn-outline-secondary" %>
+
+          <%= button_to "人員配置を同期する",
+                        sync_weekday_requirements_shift_month_path(@shift_month),
+                        method: :post,
+                        class: "btn btn-sm btn-warning",
+                        form_class: "d-inline" %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
   <div class="d-flex align-items-center gap-2 mb-3" data-controller="left-sidebar">
     <button type="button"
             class="btn btn-sm btn-outline-secondary"
