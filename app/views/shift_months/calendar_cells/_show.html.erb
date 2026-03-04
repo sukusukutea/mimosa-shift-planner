@@ -85,7 +85,12 @@
           <div class="small shift-line"><%= s.last_name %><span class="shift-time">11-20</span></div>
         <% elsif kind == :day %>
           <% day_opts = Array(s.staff_day_time_options).select { |o| o.active? }.sort_by { |o| [o.position.to_i, o.id.to_i] } %>
-          <% day_default = day_opts.find { |o| o.is_default? } || day_opts.first %>
+          <% ui_wday = ShiftMonth.ui_wday(date) %>
+          <% day_default =
+              day_opts.find { |o| Array(o.apply_wdays).map(&:to_i).include?(ui_wday) } ||
+              day_opts.find { |o| o.is_default? } ||
+              day_opts.first
+          %>
           <% picked_id = assigned_day_time_option_id_by_id[s.id] || day_default&.id %>
           <% picked = picked_id.present? ? day_opts.find { |o| o.id.to_i == picked_id.to_i } : nil %>
           <% t = picked&.time_text.to_s %>
@@ -113,7 +118,12 @@
 
         <% opt_id = (row["staff_day_time_option_id"] || row[:staff_day_time_option_id]).to_i %>
         <% day_opts = Array(staff.staff_day_time_options).select { |o| o.active? }.sort_by { |o| [o.position.to_i, o.id.to_i] } %>
-        <% day_default = day_opts.find { |o| o.is_default? } || day_opts.first %>
+        <% ui_wday = ShiftMonth.ui_wday(date) %>
+        <% day_default =
+            day_opts.find { |o| Array(o.apply_wdays).map(&:to_i).include?(ui_wday) } ||
+            day_opts.find { |o| o.is_default? } ||
+            day_opts.first
+        %>
         <% picked_id = (opt_id > 0 ? opt_id : nil) || day_default&.id %>
         <% picked = picked_id.present? ? day_opts.find { |o| o.id.to_i == picked_id.to_i } : nil %>
         <% t = picked&.time_text.to_s %>
@@ -172,7 +182,8 @@
 
     <% if !(row_key == :care && in_month) %>
       <% early_rows.each do |row| %>
-        <% staff = staff_by_id[row["staff_id"]] %>
+        <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
+        <% staff = staff_by_id[sid] %>
         <% next if staff.nil? %>
         <% if row_key_for(staff) == row_key %>
           <div class="small shift-line">
@@ -182,7 +193,8 @@
       <% end %>
 
       <% late_rows.each do |row| %>
-        <% staff = staff_by_id[row["staff_id"]] %>
+        <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
+        <% staff = staff_by_id[sid] %>
         <% next if staff.nil? %>
         <% if row_key_for(staff) == row_key %>
           <div class="small shift-line">
