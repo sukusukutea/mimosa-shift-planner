@@ -1,6 +1,6 @@
 <%= form_with model: staff, local: true do |f| %>
   <div class="row mb-3">
-    <label class="col-md-2 col-form-label fw-bold">名前</label>
+    <label class="col-md-2 col-form-label fw-bold staff-form-label">名前</label>
     <div class="col-md-3 mb-2 mb-md-0">
       <div class="input-group">
         <span class="input-group-text">姓</span>
@@ -16,7 +16,7 @@
   </div>
 
   <div class="row mb-3">
-    <label class="col-md-2 col-form-label fw-bold">なまえ</label>
+    <label class="col-md-2 col-form-label fw-bold staff-form-label">なまえ</label>
     <div class="col-md-3 mb-2 mb-md-0">
       <div class="input-group">
         <span class="input-group-text">せい</span>
@@ -32,7 +32,7 @@
   </div>
 
   <div class="row mb-4">
-    <label class="col-md-2 col-form-label fw-bold">職種</label>
+    <label class="col-md-2 col-form-label fw-bold staff-form-label">職種</label>
     <div class="col-md-3">
       <%= f.collection_select :occupation_id,
                               @occupations,
@@ -45,7 +45,7 @@
 
   <div class="mb-3">
     <div class="d-flex align-items-start gap-4">
-      <div class="form-label fw-bold mb-0" style="min-width: 110px;"> 
+      <div class="form-label fw-bold mb-0 staff-form-label" style="min-width: 110px;"> 
         出勤形態
       </div>
 
@@ -153,7 +153,7 @@
   </div>
 
   <div class="row mb-3 align-items-top">
-    <label class="col-md-2 col-form-label fw-bold">勤務可否</label>
+    <label class="col-md-2 col-form-label fw-bold staff-form-label">勤務可否</label>
     <div class="col-md-10">
       <div class="row mb-2 align-items-center">
         <div class="col-3 col-md-2">日勤</div>
@@ -214,7 +214,7 @@
   </div>
 
   <div class="row mb-4 align-items-center">
-    <label class="col-md-2 col-form-label fw-bold mb-0">スキル</label>
+    <label class="col-md-2 col-form-label fw-bold mb-0 staff-form-label">スキル</label>
     <div class="col-md-10">
       <div class="form-check form-check-inline">
         <%= f.check_box :can_visit, class: "form-check-input", id: "staff_can_visit" %>
@@ -231,17 +231,13 @@
     </div>
   </div>
 
- <%# =========================================
-     日勤の時間候補（StaffDayTimeOption）
-     - 複数登録OK
-     - active=true のものだけを後でselect候補にする想定
-     - is_default は「1つだけ」(モデルバリデーションで担保)
-  ========================================= %>
-
   <div class="row mb-4">
-    <label class="col-md-3 col-form-label fw-bold text-nowrap">日勤表示登録（任意）</label>
+    <label class="col-md-2 col-form-label fw-bold text-nowrap staff-form-label">
+      日勤表示登録<br>
+      <span class="small">（任意）</span>  
+    </label>
 
-    <div class="col-md-9">
+    <div class="col-md-10">
       <div class="small text-muted mb-1">
         例）730-1630 / 8:30-17:30 / 8-17（半角数字と「- : /（スペース可）」のみ）
       </div>
@@ -252,7 +248,7 @@
 
       <div class="d-flex flex-column gap-2">
         <%= f.fields_for :staff_day_time_options do |ff| %>
-          <div class="dayopt-row">
+          <div class="dayopt-row" data-controller="dayopt-wdays">
             <%= ff.hidden_field :id %>
 
             <div class="input-group input-group-sm dayopt-time">
@@ -260,33 +256,87 @@
               <%= ff.text_field :time_text, class: "form-control", placeholder: "例）730-1630" %>
             </div>
 
-            <div class="dayopt-check">
-              <%= ff.check_box :active, class: "form-check-input" %>
-              <%= ff.label :active, "有効", class: "form-check-label ms-1" %>
-            </div>
+            <% has_wdays = Array(ff.object.apply_wdays).reject(&:blank?).any? %>
 
-            <div class="dayopt-check">
-              <%= ff.check_box :is_default, class: "form-check-input" %>
-              <%= ff.label :is_default, "デフォルト", class: "form-check-label ms-1" %>
-            </div>
+            <div class="dayopt-mode">
+              <div class="small text-muted">曜日指定</div>
 
-            <% if ff.object&.persisted? %>
-              <% used = ShiftDayAssignment.unscoped.where(staff_day_time_option_id: ff.object.id).exists? %>
-              <div class="dayopt-check">
-                <%= ff.check_box :_destroy, class: "form-check-input", data: { used: used } %>
-                <%= ff.label :_destroy, "削除", class: "form-check-label ms-1 text-danger" %>
+              <div class="btn-group btn-group-sm" role="group" aria-label="曜日指定モード">
+                <input type="radio"
+                      class="btn-check"
+                      name="dayopt_mode_<%= ff.object_name %>"
+                      id="dayopt_mode_none_<%= ff.index %>"
+                      value="none"
+                      <%= "checked" unless has_wdays %>
+                      data-action="change->dayopt-wdays#changeMode">
+
+                <label class="btn btn-outline-secondary" for="dayopt_mode_none_<%= ff.index %>">
+                  なし
+                </label>
+
+                <input type="radio"
+                      class="btn-check"
+                      name="dayopt_mode_<%= ff.object_name %>"
+                      id="dayopt_mode_some_<%= ff.index %>"
+                      value="some"
+                      <%= "checked" if has_wdays %>
+                      data-action="change->dayopt-wdays#changeMode">
+
+                <label class="btn btn-outline-secondary" for="dayopt_mode_some_<%= ff.index %>">
+                  あり
+                </label>
               </div>
-            <% else %>
-              <div></div>
-            <% end %>
+            </div>
+
+            <div class="dayopt-flags">
+              <label class="dayopt-check">
+                <%= ff.check_box :active, class: "form-check-input" %>
+                <span class="form-check-label ms-1">有効</span>
+              </label>
+
+              <label class="dayopt-check">
+                <%= ff.check_box :is_default, class: "form-check-input" %>
+                <span class="form-check-label ms-1">デフォルト</span>
+              </label>
+            </div>
+
+            <div class="dayopt-delete">
+              <% if ff.object&.persisted? %>
+                <% used = ShiftDayAssignment.unscoped.where(staff_day_time_option_id: ff.object.id).exists? %>
+                <label class="dayopt-check">
+                  <%= ff.check_box :_destroy, class: "form-check-input", data: { used: used } %>
+                  <span class="form-check-label ms-1 text-danger">削除</span>
+                </label>
+              <% end %>
+            </div>
+
+            <% wdays = %w[月 火 水 木 金 土 日] %>
+
+            <fieldset class="dayopt-wdays" data-dayopt-wdays-target="fieldset">
+              <%# 空配列クリア用：モードが「なし」のとき、これだけ送ってDB側を空にする %>
+              <%= hidden_field_tag "#{ff.object_name}[apply_wdays][]", "" %>
+
+              <div class="d-flex flex-wrap gap-2 small">
+                <% 7.times do |i| %>
+                  <label class="d-flex align-items-center gap-1 mb-0">
+                    <%= check_box_tag "#{ff.object_name}[apply_wdays][]",
+                                      i,
+                                      Array(ff.object.apply_wdays).map(&:to_i).include?(i),
+                                      data: { dayopt_wdays_target: "box" } %>
+                    <%= wdays[i] %>
+                  </label>
+                <% end %>
+              </div>
+            </fieldset>
           </div>
         <% end %>
       </div>
 
       <div class="small text-muted mt-2">
-        <li>「デフォルト」は1つのみ有効（複数チェックすると保存時にエラーになります）</li>
+        <li>日勤表示は登録がなければ、日勤は名前のみの表示になります</li>
+        <li>曜日指定をすると、その曜日の日勤は時間が自動表示されます</li>
         <li>「有効」にすることで、手修正モード時に選択可能になります</li>
-        <li>設定がなければ、日勤は名前のみの表示になります</li>
+        <li>「デフォルト」は1つのみ有効（複数チェックすると保存時にエラーになります）</li>
       </div>
     </div>
   </div>

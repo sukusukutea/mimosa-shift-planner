@@ -432,6 +432,7 @@ class ShiftMonthsController < ApplicationController
     date  = Date.iso8601(params.require(:date))
     kind_str = params.require(:kind).to_s
     staff_id = params.require(:staff_id).to_i
+    ui_wday  = ShiftMonth.ui_wday(date)
 
     staff_day_time_option_id =
       if params.key?(:staff_day_time_option_id) && params[:staff_day_time_option_id].present?
@@ -452,7 +453,7 @@ class ShiftMonthsController < ApplicationController
     end
 
     if kind_str == "day" && staff_day_time_option_id.present?
-      ok = StaffDayTimeOption.where(id: staff_day_time_option_id, staff_id: staff_id).exists?
+      ok = StaffDayTimeOption.where(id: staff_day_time_option_id, staff_id: staff_id, active: true).exists?
       unless ok
         render json: { ok: false, error: "staff_day_time_option_id is invalid" }, status: :unprocessable_entity
         return
@@ -500,11 +501,17 @@ class ShiftMonthsController < ApplicationController
             # その職員のその日の勤務を一旦全部消す（day/early/late/night）
             scope.where(date: d, staff_id: night_staff_id, shift_kind: %i[day early late night]).delete_all
 
+            d_wday = ShiftMonth.ui_wday(d)
+
             # 日勤(day)を入れる
             max_slot = scope.where(date: d, shift_kind: :day).maximum(:slot)
             slot = max_slot.to_i + 1
 
             day_opt_id =
+              StaffDayTimeOption.where(staff_id: night_staff_id, active: true)
+                                .where("apply_wdays @> ARRAY[?]::int[]", d_wday)
+                                .order(:position, :id)
+                                .pick(:id) ||
               StaffDayTimeOption.where(staff_id: night_staff_id, active: true, is_default: true).pick(:id) ||
               StaffDayTimeOption.where(staff_id: night_staff_id, active: true).order(:position, :id).pick(:id)
 
@@ -534,7 +541,11 @@ class ShiftMonthsController < ApplicationController
             if staff_day_time_option_id.present?
               staff_day_time_option_id
             else
-              StaffDayTimeOption.where(staff_id: staff_id, active: true, is_default: true).pick(:id) ||
+              StaffDayTimeOption.where(staff_id: staff_id, active: true)
+                                .where("apply_wdays @> ARRAY[?]::int[]", ui_wday)
+                                .order(:position, :id)
+                                .pick(:id) ||
+                StaffDayTimeOption.where(staff_id: staff_id, active: true, is_default: true).pick(:id) ||
                 StaffDayTimeOption.where(staff_id: staff_id, active: true).order(:position, :id).pick(:id)
             end
           else

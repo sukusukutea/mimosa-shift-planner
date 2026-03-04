@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_25_133958) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_04_003313) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -162,12 +162,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_25_133958) do
 
   create_table "staff_day_time_options", force: :cascade do |t|
     t.boolean "active", default: true, null: false
+    t.integer "apply_wdays", default: [], null: false, array: true
     t.datetime "created_at", null: false
     t.boolean "is_default", default: false, null: false
     t.integer "position", default: 1, null: false
     t.bigint "staff_id", null: false
     t.string "time_text", null: false
     t.datetime "updated_at", null: false
+    t.index ["apply_wdays"], name: "index_staff_day_time_options_on_apply_wdays", using: :gin
     t.index ["staff_id", "active", "position"], name: "idx_sdto_staff_active_position"
     t.index ["staff_id"], name: "idx_sdto_unique_default_per_staff", unique: true, where: "(is_default = true)"
     t.index ["staff_id"], name: "index_staff_day_time_options_on_staff_id"
