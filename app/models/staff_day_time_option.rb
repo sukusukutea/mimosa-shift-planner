@@ -4,6 +4,8 @@ class StaffDayTimeOption < ApplicationRecord
   scope :active,  -> { where(active: true) }
   scope :ordered, -> { order(:position) }
 
+  before_validation :normalize_apply_wdays
+
   validates :time_text,
             presence: true,
             if: :needs_time_text?
@@ -17,6 +19,7 @@ class StaffDayTimeOption < ApplicationRecord
 
   validate :default_must_be_active
   validate :only_one_active_default_per_staff
+  validate :apply_wdays_must_be_valid
 
   private
 
@@ -47,5 +50,25 @@ class StaffDayTimeOption < ApplicationRecord
 
   def needs_time_text?
   active? || is_default?
+  end
+
+  def apply_wdays_must_be_valid
+    return if apply_wdays.blank?
+
+    list = Array(apply_wdays).map { |v| v.to_i }.uniq
+    invalid = list.reject { |v| (0..6).include?(v) }
+    return if invalid.empty?
+
+    errors.add(:apply_wdays, "は0〜6（0=月, 6=日）の範囲で設定してください")
+  end
+
+  def normalize_apply_wdays
+    return if apply_wdays.nil?
+
+    self.apply_wdays =
+      Array(apply_wdays)
+        .reject { |v| v.blank? }   # "" を消す
+        .map { |v| v.to_i }
+        .uniq
   end
 end

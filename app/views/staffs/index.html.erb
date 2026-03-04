@@ -119,15 +119,25 @@
                   <td><%= staff.can_drive ? "○" : "-" %></td>
                   <td><%= staff.can_cook  ? "○" : "-" %></td>
                   <td class="text-start small" style="white-space: nowrap;">
+                    <% wdays = %w[月 火 水 木 金 土 日] %>
                     <% opts = staff.staff_day_time_options.sort_by { |o| [o.position.to_i, o.id.to_i] } %>
 
                     <% if opts.any? %>
                       <% opts.each do |opt| %>
-                        <div class="<%= opt.active ? '' : 'text-muted' %>">
-                          <%= staff.last_name %><%= opt.time_text.present? ? "(#{opt.time_text})" : "" %>
+                        <% list = Array(opt.apply_wdays).reject(&:blank?).map(&:to_i).uniq.sort %>
+                        <% wday_text = list.map { |i| wdays[i] }.join %>
+
+                        <div class="<%= opt.active ? '' : 'text-muted' %> d-flex align-items-center gap-2">
+                          <span>
+                            <%= staff.last_name %><%= opt.time_text.present? ? "(#{opt.time_text})" : "" %>
+                          </span>
+
+                          <% if wday_text.present? %>
+                            <span class="text-muted"><%= wday_text %></span>
+                          <% end %>
 
                           <% if opt.is_default %>
-                            <span class="me-1">✓</span>
+                            <span class="ms-auto">✓</span>
                           <% end %>
                         </div>
                       <% end %>

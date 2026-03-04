@@ -114,7 +114,8 @@ class StaffsController < ApplicationController
         :position,
         :active,
         :is_default,
-        :_destroy
+        :_destroy,
+        { apply_wdays: [] }
       ]
     )
   end

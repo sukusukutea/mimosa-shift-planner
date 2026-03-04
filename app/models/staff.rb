@@ -62,6 +62,7 @@ class Staff < ApplicationRecord
             unless: :weekly?
 
   validate :only_one_day_time_default_in_form
+  validate :day_time_option_apply_wdays_must_not_overlap
 
   class << self
     def human_attribute_name(attr, options = {})
@@ -88,5 +89,30 @@ class Staff < ApplicationRecord
     return if defaults.size <= 1
 
     errors.add(:base, "「デフォルト」は1つだけ選択してください")
+  end
+
+  def day_time_option_apply_wdays_must_not_overlap
+    opts =
+      staff_day_time_options
+        .reject(&:marked_for_destruction?)
+        .select { |o| Array(o.apply_wdays).reject(&:blank?).any? }
+
+    return if opts.size <= 1
+
+    used = {} # { wday_int => option_id }
+    wday_labels = %w[月 火 水 木 金 土 日]
+
+    opts.each do |opt|
+      Array(opt.apply_wdays).reject(&:blank?).map(&:to_i).uniq.each do |w|
+        next unless (0..6).include?(w)
+
+        if used.key?(w)
+          errors.add(:base, "日勤表示登録の曜日指定が重複しています（#{wday_labels[w]}）。曜日は1つの時間だけに設定してください。")
+          return
+        end
+
+        used[w] = opt.id || :new
+      end
+    end
   end
 end

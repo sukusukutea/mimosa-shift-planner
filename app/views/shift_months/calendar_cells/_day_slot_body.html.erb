@@ -37,8 +37,20 @@
   <% staffs_for_row.each do |s| %>
     <% kind = assigned_kind_by_id[s.id] %>
     <% night_related = night_related_ids.map(&:to_i).include?(s.id) %>
-    <% day_opts = Array(s.staff_day_time_options).select { |o| o.active? }.sort_by { |o| [o.position.to_i, o.id.to_i] } %>
-    <% day_default = day_opts.find { |o| o.is_default? } %>
+    <% day_opts =
+      Array(s.staff_day_time_options)
+        .select { |o| o.active? || o.is_default? || Array(o.apply_wdays).reject(&:blank?).any? }
+        .sort_by { |o| [o.position.to_i, o.id.to_i] } %>
+    <% ui_wday = ShiftMonth.ui_wday(date) %>
+    <% day_default =
+        day_opts.find { |o| Array(o.apply_wdays).map(&:to_i).include?(ui_wday) } || 
+        day_opts.find { |o| o.is_default? } %>
+    <% day_opts_for_select =
+        day_opts.sort_by do |o|
+          hit = Array(o.apply_wdays).map(&:to_i).include?(ui_wday)
+          [hit ? 0 : 1, o.position.to_i, o.id.to_i]
+        end
+    %>
 
     <% selected =
       if kind == :day
@@ -60,7 +72,7 @@
         "(11-20)"
       elsif selected.to_s.start_with?("day:")
         picked_id = selected.split(":")[1].to_i
-        picked = day_opts.find { |o| o.id.to_i == picked_id }
+        picked = day_opts_for_select.find { |o| o.id.to_i == picked_id }
         picked&.time_text.present? ? "(#{picked.time_text})" : ""
       else
         ""
@@ -96,7 +108,7 @@
             <%= s.last_name %>
           </option>
 
-          <% day_opts.each do |opt| %>
+          <% day_opts_for_select.each do |opt| %>
             <% v = "day:#{opt.id}" %>
             <option
               value="<%= v %>"

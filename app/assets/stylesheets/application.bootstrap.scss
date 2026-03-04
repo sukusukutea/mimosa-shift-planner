@@ -375,27 +375,80 @@ body.sidebar-left-collapsed #sidebar-col {
 }
 
 /* =========================================
-   職員登録ページの日勤表示登録部分
+   職員登録ページ
 ========================================= */
 
-/* 日勤表示登録（任意）の1行を崩れにくいGridで整列 */
-.dayopt-row {
-  display: grid;
-  grid-template-columns: 180px max-content max-content max-content; /* 時間 / 有効 / デフォルト / 削除 */
-  column-gap: 0.5rem;  /* 横の間隔だけ調整（デフォルトを有効に寄せたいなら小さめ） */
-  row-gap: 0.25rem;
-  align-items: center;
-}
+.dayopt-time   { grid-area: time; max-width: 180px; }
+.dayopt-flags  { grid-area: flags; display: inline-flex; gap: 0.75rem; align-items: center; white-space: nowrap; }
+.dayopt-delete { grid-area: delete; }
+.dayopt-wdays  { grid-area: wdays; }
 
-/* input-groupの幅をGrid列にフィットさせる */
-.dayopt-time {
-  max-width: 180px;
-}
-
-/* チェック群の見た目を揃える */
-.dayopt-check {
+.dayopt-check{
   display: inline-flex;
   align-items: center;
   white-space: nowrap;
   margin: 0;
+}
+
+/* フォーム左見出しを右揃え＋右端を揃える */
+.staff-form-label{
+  display: flex;
+  justify-content: flex-end; /* 右揃え */
+  align-items: flex-start;   /* ← ここを追加：上揃え */
+  text-align: right;
+  line-height: 1.2;
+  padding-top: 0.35rem;      /* input高さとの微調整 */
+}
+
+/* 文字数が違っても右端が揃うようにする（必要なら） */
+@media (min-width: 768px) {
+  .staff-form-label {
+    padding-right: 0.75rem; /* 見出しと入力の間の余白 */
+  }
+}
+
+.dayopt-row{
+  display: grid;
+  grid-template-columns: 180px max-content max-content max-content; /* 時間 / トグル / flags / 削除 */
+  grid-template-areas:
+    "time  mode  flags delete"
+    ".     .     wdays wdays";
+  column-gap: 0.75rem;
+  row-gap: 0.35rem;
+  align-items: start;
+}
+
+.dayopt-time  { grid-area: time;  max-width: 180px; }
+.dayopt-mode  { grid-area: mode;  white-space: nowrap; }
+.dayopt-flags { grid-area: flags; display: inline-flex; gap: 0.75rem; align-items: center; white-space: nowrap; }
+.dayopt-delete{ grid-area: delete; }
+.dayopt-wdays { grid-area: wdays; }
+
+/* 曜日トグルをコンパクトにする */
+.dayopt-mode .btn-group .btn{
+  padding: 0.05rem 0.35rem; /* 縦 横 */
+  font-size: 0.7rem;        /* 文字サイズ */
+  line-height: 1.1;
+}
+
+/* 曜日チェックのグレーアウト */
+.dayopt-wdays.wdays-disabled label{
+  color: #adb5bd;     /* Bootstrapの薄グレー */
+}
+
+/* チェックボックス自体も薄く */
+.dayopt-wdays.wdays-disabled input[type="checkbox"]{
+  opacity: 0.4;
+}
+
+.dayopt-mode-label{
+  margin-bottom: 0.02rem; /* 0〜0.1remで微調整OK */
+  line-height: 1.0;
+  font-size: 0.65rem;     /* 既存に合わせるなら不要 */
+}
+
+.dayopt-mode{
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;        /* ラベル⇔トグルの間隔 */
 }

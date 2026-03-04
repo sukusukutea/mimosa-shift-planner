@@ -27,3 +27,6 @@ application.register("night-picker", NightPickerController)
 
 import UnsavedGuardController from "./unsaved_guard_controller"
 application.register("unsaved-guard", UnsavedGuardController)
+
+import DayoptWdaysController from "./dayopt_wdays_controller"
+application.register("dayopt-wdays", DayoptWdaysController)
