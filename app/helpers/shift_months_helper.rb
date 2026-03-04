@@ -150,7 +150,11 @@ module ShiftMonthsHelper
 
       if night_in_sid > 0
         desig = designations_by_date[date] || {}
-        desig_staff_ids = desig.values.map(&:to_i).reject { |x| x <= 0 }
+        desig_staff_ids =
+          desig.values
+              .flatten
+              .map(&:to_i)
+              .reject { |x| x <= 0 }
         msgs << "明け翌日休みに勤務指定が衝突" if desig_staff_ids.include?(night_in_sid)
       end
     end

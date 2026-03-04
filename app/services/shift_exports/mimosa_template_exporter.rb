@@ -343,7 +343,7 @@ module ShiftExports
           elsif kind == :late
             { text: "#{s.last_name} #{LATE_TIME_TEXT}", red: false }
           elsif kind == :day
-            t = day_time_text_for(staff: s, picked_opt_id: assigned_day_opt_by_id[s.id])
+            t = day_time_text_for(staff: s, picked_opt_id: assigned_day_opt_by_id[s.id], date: date)
             if t.present?
               { text: "#{s.last_name} #{t}", red: false }
             else
@@ -372,7 +372,7 @@ module ShiftExports
         next unless row_key_for(staff) == row_key
 
         opt_id = (r["staff_day_time_option_id"] || r[:staff_day_time_option_id]).to_i
-        t = day_time_text_for(staff: staff, picked_opt_id: (opt_id > 0 ? opt_id : nil))
+        t = day_time_text_for(staff: staff, picked_opt_id: (opt_id > 0 ? opt_id : nil), date: date)
 
         if t.present?
           lines << { text: "#{staff.last_name} #{t}", red: false }
@@ -456,13 +456,26 @@ module ShiftExports
       lines
     end
 
-    def day_time_text_for(staff:, picked_opt_id:)
-      day_opts = Array(staff.staff_day_time_options).select { |o| o.active? }
-                     .sort_by { |o| [o.position.to_i, o.id.to_i] }
+    def day_time_text_for(staff:, picked_opt_id:, date:)
+      ui_wday = ShiftMonth.ui_wday(date)
 
-      day_default = day_opts.find { |o| o.is_default? } || day_opts.first
+      day_opts =
+        Array(staff.staff_day_time_options)
+          .select { |o| o.active? }
+          .sort_by { |o| [o.position.to_i, o.id.to_i] }
+
+      # show/preview と同じ優先順：
+      # 1) 曜日一致(apply_wdaysに含む)
+      # 2) is_default
+      # 3) 先頭
+      day_default =
+        day_opts.find { |o| Array(o.apply_wdays).map(&:to_i).include?(ui_wday) } ||
+        day_opts.find { |o| o.is_default? } ||
+        day_opts.first
+
       id = picked_opt_id || day_default&.id
       picked = id.present? ? day_opts.find { |o| o.id.to_i == id.to_i } : nil
+
       picked&.time_text.to_s
     end
 
