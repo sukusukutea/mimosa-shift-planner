@@ -5,7 +5,7 @@ class ShiftMonthsController < ApplicationController
                                         :generate_draft, :preview, :edit_draft, :confirm_draft, :show, :add_staff_holiday,
                                         :remove_staff_holiday, :update_weekday_requirements, :update_designation,
                                         :remove_designation, :update_draft_assignment, :start_edit_from_confirmed,
-                                        :export_excel]
+                                        :export_excel, :sync_weekday_requirements]
   before_action :build_calendar_vars, only: [:settings, :preview, :edit_draft, :show]
 
   def new
@@ -56,11 +56,15 @@ class ShiftMonthsController < ApplicationController
       render :new, status: :unprocessable_entity
       return
     end
-  
+
     existing = current_user.shift_months.find_by(year: year, month: month)
     if existing
-      redirect_to settings_shift_month_path(existing), notice: "既に作成済みのため、その月を開きました。"
-      return # このreturnは「このcreateアクションの処理をここで終了する」の意味
+      if weekday_requirements_changed?(shift_month: existing)
+        redirect_to settings_shift_month_path(existing, stale_weekday_req: "1")
+      else
+        redirect_to settings_shift_month_path(existing), notice: "既に作成済みのため、その月を開きました。"
+      end
+      return
     end
 
     @shift_month.year = year
@@ -810,6 +814,13 @@ class ShiftMonthsController < ApplicationController
     )
   end
 
+  def sync_weekday_requirements
+  @shift_month.copy_weekday_requirements_from_base!(user: current_user)
+
+  redirect_to settings_shift_month_path(@shift_month),
+              notice: "曜日別人員配置（元設定）をこの月に同期しました。"
+  end
+
   private
 
   def require_organization!
@@ -1047,5 +1058,21 @@ class ShiftMonthsController < ApplicationController
     extra = user.shift_months.order(created_at: :desc).offset(keep)
 
     extra.destroy_all
+  end
+
+  def weekday_requirements_changed?(shift_month:)
+    base_rows =
+      current_user.base_weekday_requirements
+                  .select(:shift_kind, :day_of_week, :role, :required_number)
+                  .map { |r| [r.shift_kind.to_s, r.day_of_week.to_i, r.role.to_s, r.required_number.to_i] }
+                  .sort
+
+    month_rows =
+      shift_month.shift_month_requirements
+                .select(:shift_kind, :day_of_week, :role, :required_number)
+                .map { |r| [r.shift_kind.to_s, r.day_of_week.to_i, r.role.to_s, r.required_number.to_i] }
+                .sort
+
+    base_rows != month_rows
   end
 end
