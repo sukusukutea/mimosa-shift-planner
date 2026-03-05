@@ -6,6 +6,7 @@ ja:
   devise:
     registrations:
       signed_up: "新規登録が完了しました"
+      signed_up_but_unconfirmed: "確認メールを送信しました。メールのリンクをクリックしてアカウントを有効化してください。"
     sessions:
       signed_in: "ログインしました"
       signed_out: "ログアウトしました"
