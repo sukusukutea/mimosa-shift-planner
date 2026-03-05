@@ -291,23 +291,22 @@ class ShiftMonthsController < ApplicationController
 
   def add_staff_holiday
     force = params[:force].to_s == "1"
-    sid   = params[:staff_id].to_i
     date  = Date.iso8601(params[:date])
+    staff = current_user.staffs.find(params[:staff_id])
 
-    conflicts = @shift_month.shift_day_designations.where(date: date, staff_id: sid)
+    conflicts = @shift_month.shift_day_designations.where(date: date, staff_id: staff.id)
     if !force && conflicts.exists?
       flash[:conflict] = {
         kind: "holiday_over_designation",
-        staff_id: sid,
+        staff_id: staff.id,
         date: date.iso8601
       }
-      redirect_to settings_shift_month_path(@shift_month, tab: "holiday", staff_id: sid)
+      redirect_to settings_shift_month_path(@shift_month, tab: "holiday", staff_id: staff.id)
       return
     end
 
     conflicts.delete_all
 
-    staff = current_user.staffs.find(sid)
     @shift_month.staff_holiday_requests.find_or_create_by!(staff: staff, date: date)
 
     redirect_to settings_shift_month_path(@shift_month, tab: "holiday", staff_id: staff.id), notice: "休日希望を追加しました"

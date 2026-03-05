@@ -100,7 +100,7 @@ class Users::RegistrationsController < Devise::RegistrationsController
     params.require(:user).permit(
       :name,
       :organization_name,
-      :email,
+      # :email,
       :password,
       :password_confirmation,
       :current_password
