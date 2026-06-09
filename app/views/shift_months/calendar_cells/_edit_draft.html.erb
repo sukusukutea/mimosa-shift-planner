@@ -3,10 +3,10 @@
   day_enabled_by_date:, early_enabled_by_date:, late_enabled_by_date:,
   required_by_date:, required_skill_by_date:, alerts_by_date:,
   draft:, staff_by_id:, unassigned_display_staffs_by_date:,
-  holiday_requests_by_date:, designations_by_date:
+  holiday_requests_by_date:, designations_by_date:, carry_over_state:
 %>
 
-<% ctx = shift_day_context(draft, date) %>
+<% ctx = shift_day_context(draft, date, carry_over_state: carry_over_state, shift_month: shift_month) %>
 <% day_rows   = ctx[:day_rows] %>
 <% early_rows = ctx[:early_rows] %>
 <% late_rows  = ctx[:late_rows] %>
@@ -54,7 +54,8 @@
         staff_by_id: staff_by_id,
         unassigned_display_staffs_by_date: unassigned_display_staffs_by_date,
         holiday_requests_by_date: holiday_requests_by_date,
-        designations_by_date: designations_by_date
+        designations_by_date: designations_by_date,
+        carry_over_state: carry_over_state
       %>
     </div>
 
@@ -72,7 +73,8 @@
                 row_key: row_key,
                 shift_month: shift_month,
                 draft: draft,
-                staff_by_id: staff_by_id %>
+                staff_by_id: staff_by_id,
+                carry_over_state: carry_over_state %>
     </div>
     <div class="slot slot-stay"></div>
   </div>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_19_122933) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_24_010740) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -163,6 +163,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_19_122933) do
   end
 
   create_table "shift_months", force: :cascade do |t|
+    t.boolean "carry_over_prev_month_constraints", default: false, null: false
     t.datetime "created_at", null: false
     t.integer "holiday_days"
     t.integer "month", null: false

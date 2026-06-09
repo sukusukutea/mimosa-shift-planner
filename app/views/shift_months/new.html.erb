@@ -22,24 +22,57 @@
           <div class="row g-3 align-items-end">
             <div class="col-auto">
               <%= f.label :year, "年", class: "form-label" %>
-              <%= f.number_field :year, class: "form-control", value: Date.today.year %>
+              <%= f.number_field :year, class: "form-control", value: (@shift_month.year || Date.today.year) %>
             </div>
 
             <div class="col-auto">
               <%= f.label :month, "月", class: "form-label" %>
-              <%= f.number_field :month, class: "form-control", value: Date.today.month, min: 1, max: 12 %>
+              <%= f.number_field :month, class: "form-control", value: (@shift_month.month || Date.today.month), min: 1, max: 12 %>
             </div>
 
-            <div class="col-auto">
-              <%= f.submit "作成する",
-                    class: "btn btn-primary",
-                    data: (
-                      @shift_months_count.to_i >= 6 ?
-                        { turbo_confirm: "保存上限(６件)を超えているため、古いデータを自動削除して新しい月を作成します。よろしいですか？" } :
-                        {}
-                    ) %>
-            </div>
+            <% unless @show_carry_over_confirm %>
+              <div class="col-auto">
+                <%= f.submit "作成する",
+                      class: "btn btn-primary",
+                      data: (
+                        @shift_months_count.to_i >= 6 ?
+                          { turbo_confirm: "保存上限(６件)を超えているため、古いデータを自動削除して新しい月を作成します。よろしいですか？" } :
+                          {}
+                      ) %>
+              </div>
+            <% end %>
           </div>
+
+          <% if @show_carry_over_confirm && @carry_over_prev_month.present? %>
+            <div class="alert alert-info mt-4">
+              <div class="fw-bold mb-2">
+                前月の勤務をもとに月またぎの勤務を自動で設定しますか？
+              </div>
+
+              <div class="small mb-3">
+                <%= @carry_over_prev_month.year %>年<%= @carry_over_prev_month.month %>月の確定シフトが見つかりました。<br>
+                月またぎ設定を使うと、前月末の勤務状況をもとに、今月初日の夜勤明け・休み必要日などの判定に反映します。
+
+                <div class="mt-2">
+                  ※ 既存月で月またぎ設定を有効にした場合、対象外の職員の設定はそのまま残ります。対象職員のみ、月またぎ設定と重複する休日設定・勤務指定は解除され、月またぎ設定が優先されます。
+                </div>
+              </div>
+
+              <div class="d-flex gap-2">
+                <%= button_tag "はい",
+                               type: "submit",
+                               name: "carry_over_choice",
+                               value: "yes",
+                               class: "btn btn-sm btn-primary" %>
+
+                <%= button_tag "いいえ",
+                               type: "submit",
+                               name: "carry_over_choice",
+                               value: "no",
+                               class: "btn btn-sm btn-outline-secondary" %>
+              </div>
+            </div>
+          <% end %>
         <% end %>
 
         <div class="card border-0 bg-light mt-5" style="max-width: 500px;">

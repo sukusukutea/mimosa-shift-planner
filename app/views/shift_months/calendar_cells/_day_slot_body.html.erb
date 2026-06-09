@@ -3,10 +3,10 @@
   day_enabled_by_date:, early_enabled_by_date:, late_enabled_by_date:,
   required_by_date:, required_skill_by_date:, alerts_by_date:,
   draft:, staff_by_id:, unassigned_display_staffs_by_date:,
-  holiday_requests_by_date:, designations_by_date:
+  holiday_requests_by_date:, designations_by_date:, carry_over_state:
 %>
 
-<% ctx = shift_day_context(draft, date) %>
+<% ctx = shift_day_context(draft, date, carry_over_state: carry_over_state, shift_month: shift_month) %>
 <% late_time_options = shift_month.shift_month_time_options.late.order(:position, :id) %>
 <% late_time_options_by_id = late_time_options.index_by(&:id) %>
 <% default_late_time_option_id = late_time_options.find(&:is_default?)&.id %>
@@ -14,6 +14,7 @@
 <% early_rows = ctx[:early_rows] %>
 <% late_rows  = ctx[:late_rows] %>
 <% night_related_ids = ctx[:night_related_ids] %>
+<% month_begin = Date.new(shift_month.year, shift_month.month, 1) %>
 
 <% editable_row_keys = %i[nurse care care_mgr cook clerk] %>
 <% if editable_row_keys.include?(row_key) && in_month %>
@@ -59,6 +60,10 @@
         end
     %>
 
+    <% carry_state = carry_over_state[s.id] %>
+    <% carry_in_kind = carry_state&.dig(:carry_in_kind)&.to_sym %>
+    <% carry_night_off_today = (date == month_begin && carry_in_kind == :night_off) %>
+
     <% selected =
       if kind == :day
         picked_id = assigned_day_time_option_id_by_id[s.id] || day_default&.id
@@ -69,7 +74,7 @@
         late_opt_id = assigned_late_time_option_id_by_id[s.id] || default_late_time_option_id
         late_opt_id.present? ? "late:#{late_opt_id}" : "late"
       else
-        night_related ? "night_related" : "off"
+        (carry_night_off_today || night_related) ? "night_related" : "off"
       end
     %>
 

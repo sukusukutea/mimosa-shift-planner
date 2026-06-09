@@ -73,20 +73,35 @@ module ShiftMonthsHelper
     sid.to_i if sid.present?
   end
 
-  # viewでよく使う「rows + 夜勤/明けID」までまとめて返す
-  def shift_day_context(data, date)
+  def shift_day_context(data, date, carry_over_state: nil, shift_month: nil)
     pack = shift_day_rows(data, date)
 
     night_sid = shift_first_staff_id(pack[:night_rows])
 
     prev_pack = shift_day_rows(data, date - 1)
-    night_off_sid = shift_first_staff_id(prev_pack[:night_rows])
+    night_off_ids = Array(prev_pack[:night_rows]).map do |row|
+      (row["staff_id"] || row[:staff_id]).to_i
+    end.select { |id| id > 0 }
+
+    if carry_over_state.present? && shift_month.present?
+      month_begin = Date.new(shift_month.year, shift_month.month, 1)
+
+      if date == month_begin
+        carry_ids =
+          carry_over_state.filter_map do |staff_id, state|
+            staff_id.to_i if state.present? && state[:carry_in_kind]&.to_sym == :night_off
+          end
+
+        night_off_ids |= carry_ids
+      end
+    end
 
     {
       **pack,
       night_sid: night_sid.to_i,
-      night_off_sid: night_off_sid.to_i,
-      night_related_ids: [night_sid, night_off_sid].compact.map(&:to_i)
+      night_off_sid: night_off_ids.first.to_i,
+      night_off_ids: night_off_ids,
+      night_related_ids: ([night_sid.to_i] + night_off_ids).uniq
     }
   end
 
@@ -160,5 +175,27 @@ module ShiftMonthsHelper
     end
 
     msgs
+  end
+
+  def carry_over_label_for(carry_state:, date:, month_begin:)
+    return nil if carry_state.blank?
+    return nil if date < month_begin || date > (month_begin + 1)
+
+    if date == month_begin
+      return "明け" if carry_state[:carry_in_kind] == :night_off
+      return "休" if carry_state[:remaining_required_rest_days].to_i > 0
+    end
+
+    if date == month_begin + 1
+      if carry_state[:carry_in_kind] == :night_off
+        return "休"
+      end
+
+      if carry_state[:remaining_required_rest_days].to_i >= 2
+        return "休"
+      end
+    end
+
+    nil
   end
 end

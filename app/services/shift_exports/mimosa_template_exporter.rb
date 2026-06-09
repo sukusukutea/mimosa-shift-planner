@@ -11,7 +11,7 @@ module ShiftExports
 
     # テンプレの行位置（あなたの指定）
     DATE_ROW_FIRST = 3     # 1週目の日付行
-    WEEK_ROW_STEP  = 36    # 1週ごとのブロック差分（3->39 が 36）
+    WEEK_ROW_STEP  = 42    # 1週ごとのブロック差分（3->39 が 36）
 
     SHEET_NAME = "原本１か月"
 
@@ -21,17 +21,17 @@ module ShiftExports
     # 1週ブロック内の開始行オフセット
     ROW_OFFSETS = {
       nurse:    0,   # 19
-      care_mgr: 5,   # 24
-      care:     6,   # 25
-      cook:     18,  # 37
-      clerk:    19   # 38
+      care_mgr: 9,   # 24
+      care:     10,   # 29
+      cook:     24,  # 43
+      clerk:    25   # 44
     }.freeze
 
     # 各職種の縦枠上限（あなたの指定）
     MAX_ROWS = {
-      nurse: 5,
+      nurse: 9,
       care_mgr: 1,
-      care: 12,
+      care: 14,
       cook: 1,
       clerk: 1
     }.freeze
@@ -61,6 +61,7 @@ module ShiftExports
       staff_by_id = preload_staffs
       sorted_staffs_by_row_key = build_sorted_staffs_by_row_key(staff_by_id)
       assignments_hash = build_confirmed_assignments_hash(month_begin, month_end)
+      carry_over_state = build_carry_over_state
 
       unassigned_by_date =
         ShiftDrafts::UnassignedDisplayStaffsBuilder.new(
@@ -83,8 +84,8 @@ module ShiftExports
 
       # ---- style indexes ----
       red_style_index = read_cell(sheet, 2, col_index("U"))&.style_index # U2
-      requested_off_style_index = read_cell(sheet, 221, col_index("L"))&.style_index # L221
-      paid_leave_style_index    = read_cell(sheet, 222, col_index("L"))&.style_index # L222
+      requested_off_style_index = read_cell(sheet, 257, col_index("L"))&.style_index # L257
+      paid_leave_style_index    = read_cell(sheet, 258, col_index("L"))&.style_index # L258
       admin_off_style_index     = read_cell(sheet, 3, col_index("B"))&.style_index   # B3
 
       # ※日付セルは「元の背景/罫線/中央揃え」を維持し、赤はフォントだけ差し替える
@@ -145,7 +146,7 @@ module ShiftExports
         night_col = day_col + 1                                # D/G/J...
         # stay_col  = day_col + 2                              # E/H/K...（当面触らない）
 
-        ctx = build_day_context(assignments_hash, date)
+        ctx = build_day_context(assignments_hash, date, carry_over_state: carry_over_state, month_begin: month_begin)
 
         ROW_OFFSETS.each_key do |row_key|
           start_row = STAFF_BLOCK_FIRST + (WEEK_ROW_STEP * week_idx) + ROW_OFFSETS.fetch(row_key)
@@ -161,7 +162,9 @@ module ShiftExports
             unassigned_by_date: unassigned_by_date,
             holiday_requests_by_date: holiday_requests_by_date,
             default_late_time_text: default_late_time_text,
-            late_time_options_by_id: late_time_options_by_id
+            late_time_options_by_id: late_time_options_by_id,
+            carry_over_state: carry_over_state,
+            month_begin: month_begin
           )
 
           # 夜勤列の表示行（文字＋赤フラグ）
@@ -292,10 +295,60 @@ module ShiftExports
       h
     end
 
+    def build_carry_over_state
+      return {} unless @shift_month.carry_over_prev_month_constraints?
+
+      current_month_begin = Date.new(@shift_month.year, @shift_month.month, 1)
+      prev_month_date = current_month_begin.prev_month
+
+      prev_shift_month = @shift_month.user.shift_months.find_by(
+        year: prev_month_date.year,
+        month: prev_month_date.month
+      )
+      return {} if prev_shift_month.nil?
+
+      prev_month_begin = Date.new(prev_shift_month.year, prev_shift_month.month, 1)
+      prev_month_end = prev_month_begin.end_of_month
+      from_date = [prev_month_end - 6, prev_month_begin].max
+
+      assignments =
+        prev_shift_month.shift_day_assignments
+                        .confirmed
+                        .where(date: from_date..prev_month_end)
+                        .select(:id, :date, :shift_kind, :staff_id)
+
+      history = Hash.new { |h, staff_id| h[staff_id] = Hash.new { |hh, date| hh[date] = [] } }
+
+      assignments.find_each do |assignment|
+        history[assignment.staff_id.to_i][assignment.date] << assignment.shift_kind.to_sym
+      end
+
+      state = {}
+
+      history.each do |staff_id, by_date|
+        last_kinds = Array(by_date[prev_month_end])
+
+        carry_in_kind = nil
+        remaining_required_rest_days = 0
+
+        if last_kinds.include?(:night)
+          carry_in_kind = :night_off
+          remaining_required_rest_days = 1
+        end
+
+        state[staff_id] = {
+          carry_in_kind: carry_in_kind,
+          remaining_required_rest_days: remaining_required_rest_days
+        }
+      end
+
+      state
+    end
+
     # -----------------------------
     # show同等の “日ごとの文脈”
     # -----------------------------
-    def build_day_context(assignments_hash, date)
+    def build_day_context(assignments_hash, date, carry_over_state:, month_begin:)
       day_hash = (assignments_hash || {})[date.iso8601] || {}
 
       day_rows   = day_hash["day"]   || day_hash[:day]   || []
@@ -307,9 +360,20 @@ module ShiftExports
 
       prev_hash = (assignments_hash || {})[(date - 1).iso8601] || {}
       prev_night_rows = prev_hash["night"] || prev_hash[:night] || []
-      night_off_sid = first_staff_id(prev_night_rows)
 
-      night_related_ids = [night_sid, night_off_sid].compact.map(&:to_i)
+      night_off_ids =
+        Array(prev_night_rows).map do |row|
+          (row["staff_id"] || row[:staff_id]).to_i
+        end.select { |id| id > 0 }
+
+      if date == month_begin
+        carry_ids =
+          carry_over_state.filter_map do |staff_id, state|
+            staff_id.to_i if state.present? && state[:carry_in_kind]&.to_sym == :night_off
+          end
+
+        night_off_ids |= carry_ids
+      end
 
       {
         day_rows: day_rows,
@@ -317,8 +381,8 @@ module ShiftExports
         late_rows: late_rows,
         night_rows: night_rows,
         night_sid: night_sid.to_i,
-        night_off_sid: night_off_sid.to_i,
-        night_related_ids: night_related_ids
+        night_off_ids: night_off_ids,
+        night_related_ids: ([night_sid.to_i] + night_off_ids).uniq
       }
     end
 
@@ -333,7 +397,7 @@ module ShiftExports
     # 表示行（文字＋赤フラグ）を作る
     # -----------------------------
     # 返り値: [{text:"...", red:true/false}, ...]
-    def build_day_lines(row_key:, date:, ctx:, staff_by_id:, sorted_staffs_by_row_key:, unassigned_by_date:, holiday_requests_by_date:, default_late_time_text:, late_time_options_by_id:)
+    def build_day_lines(row_key:, date:, ctx:, staff_by_id:, sorted_staffs_by_row_key:, unassigned_by_date:, holiday_requests_by_date:, default_late_time_text:, late_time_options_by_id:, carry_over_state:, month_begin:)
       day_rows   = ctx[:day_rows]
       early_rows = ctx[:early_rows]
       late_rows  = ctx[:late_rows]
@@ -363,6 +427,7 @@ module ShiftExports
 
         return staffs.map do |s|
           kind = assigned_kind_by_id[s.id]
+
           if kind == :early
             { text: "#{s.last_name} #{EARLY_TIME_TEXT}", red: false }
           elsif kind == :late
@@ -380,14 +445,13 @@ module ShiftExports
             holiday_request =
               Array(holiday_requests_by_date[date]).find { |request| request.staff_id.to_i == s.id.to_i }
 
-            # 休み（night_relatedは(休)を付けず赤字名前のみ）
             if night_related_ids.include?(s.id.to_i)
               { text: s.last_name.to_s, red: true, holiday_type: nil }
             else
               { text: "#{s.last_name}（休み）", red: true, holiday_type: holiday_request&.holiday_type }
             end
           end
-        end
+        end.compact
       end
 
       # 介護以外：割当表示 → 夜勤関連の赤名前 → 未割当(休)
@@ -440,9 +504,11 @@ module ShiftExports
         sid = sid.to_i
         next if sid <= 0
         next if displayed_ids.include?(sid)
+
         staff = staff_by_id[sid]
         next if staff.nil?
         next unless row_key_for(staff) == row_key
+
         lines << { text: staff.last_name.to_s, red: true }
         displayed_ids << sid
       end
@@ -452,6 +518,7 @@ module ShiftExports
       Array(list).each do |staff|
         next if staff.nil?
         next unless row_key_for(staff) == row_key
+        next if displayed_ids.include?(staff.id.to_i)
 
         holiday_request =
           Array(holiday_requests_by_date[date]).find { |request| request.staff_id.to_i == staff.id.to_i }
@@ -469,11 +536,10 @@ module ShiftExports
     def build_night_lines(row_key:, ctx:, staff_by_id:)
       night_rows = ctx[:night_rows]
       night_sid = ctx[:night_sid].to_i
-      night_off_sid = ctx[:night_off_sid].to_i
+      night_off_ids = Array(ctx[:night_off_ids]).map(&:to_i)
 
       lines = []
 
-      # 夜勤入り（当日）
       Array(night_rows).each do |r|
         sid = (r["staff_id"] || r[:staff_id]).to_i
         staff = staff_by_id[sid]
@@ -482,12 +548,15 @@ module ShiftExports
         lines << { text: staff.last_name.to_s, red: false }
       end
 
-      # 明け（前日夜勤者）※当日夜勤者と別なら表示
-      if night_off_sid > 0 && night_off_sid != night_sid
-        staff = staff_by_id[night_off_sid]
-        if staff && row_key_for(staff) == row_key
-          lines << { text: "#{staff.last_name}(明け)", red: false }
-        end
+      night_off_ids.each do |sid|
+        next if sid <= 0
+        next if sid == night_sid
+
+        staff = staff_by_id[sid]
+        next if staff.nil?
+        next unless row_key_for(staff) == row_key
+
+        lines << { text: "#{staff.last_name}(明け)", red: false }
       end
 
       lines

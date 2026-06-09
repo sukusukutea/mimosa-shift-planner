@@ -1,11 +1,11 @@
 <%# locals:
   date:, in_month:, row_key:, shift_month:,
-  draft:, staff_by_id:
+  draft:, staff_by_id:, carry_over_state:
 %>
 
-<% ctx = shift_day_context(draft, date) %>
+<% ctx = shift_day_context(draft, date, carry_over_state: carry_over_state, shift_month: shift_month) %>
 <% night_rows = ctx[:night_rows] %>
-<% night_off_sid = ctx[:night_off_sid] %>
+<% night_off_ids = Array(ctx[:night_off_ids]).map(&:to_i) %>
 
 <% night_rows.each do |row| %>
   <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
@@ -17,9 +17,11 @@
 <% end %>
 
 <%# 当月内だけ完結：月外セルでは明けを出さない %>
-<% if in_month && night_off_sid.to_i > 0 %>
-  <% off_staff = staff_by_id[night_off_sid.to_i] %>
-  <% if off_staff && row_key_for(off_staff) == row_key %>
+<% if in_month %>
+  <% night_off_ids.each do |sid| %>
+    <% off_staff = staff_by_id[sid] %>
+    <% next if off_staff.nil? %>
+    <% next unless row_key_for(off_staff) == row_key %>
     <div class="small"><%= off_staff.last_name %>(明け)</div>
   <% end %>
 <% end %>

@@ -70,6 +70,35 @@ class ShiftMonthsController < ApplicationController
 
     existing = current_user.shift_months.find_by(year: year, month: month)
     if existing
+      prev_shift_month = previous_shift_month_with_confirmed_data(
+        user: current_user,
+        year: year,
+        month: month
+      )
+
+      carry_over_choice = params[:carry_over_choice].to_s
+
+      if prev_shift_month.present? && carry_over_choice.blank?
+        @shift_month = current_user.shift_months.new(year: year, month: month)
+        @show_carry_over_confirm = true
+        @carry_over_prev_month = prev_shift_month
+        @recent_shift_months = current_user.shift_months.order(year: :desc, month: :desc).limit(3)
+        @shift_months_count  = current_user.shift_months.count
+
+        render :new, status: :unprocessable_entity
+        return
+      end
+
+      if carry_over_choice.present?
+        existing.update!(
+          carry_over_prev_month_constraints: (carry_over_choice == "yes")
+        )
+
+        if carry_over_choice == "yes"
+          clear_conflicts_with_carry_over!(shift_month: existing)
+        end
+      end
+
       if weekday_requirements_changed?(shift_month: existing)
         redirect_to settings_shift_month_path(existing, stale_weekday_req: "1")
       else
@@ -78,8 +107,27 @@ class ShiftMonthsController < ApplicationController
       return
     end
 
+    prev_shift_month = previous_shift_month_with_confirmed_data(
+      user: current_user,
+      year: year,
+      month: month
+    )
+
+    carry_over_choice = params[:carry_over_choice].to_s
+
+    if prev_shift_month.present? && carry_over_choice.blank?
+      @shift_month.year = year
+      @shift_month.month = month
+      @show_carry_over_confirm = true
+      @carry_over_prev_month = prev_shift_month
+
+      render :new, status: :unprocessable_entity
+      return
+    end
+
     @shift_month.year = year
     @shift_month.month = month
+    @shift_month.carry_over_prev_month_constraints = (carry_over_choice == "yes")
 
     if @shift_month.save
       @shift_month.copy_weekday_requirements_from_base!(user: current_user)
@@ -111,6 +159,8 @@ class ShiftMonthsController < ApplicationController
     prepare_holiday_tab_vars
     ensure_default_late_time_option!
     prepare_month_tab_vars
+    @carry_over_state = build_carry_over_state(shift_month: @shift_month)
+    @carry_over_source_assignments = previous_month_confirmed_assignments_for_carry_over(shift_month: @shift_month, days: 7).to_a
     @weekday_requirements = build_weekday_requirements_hash
     @day_req = @shift_month.required_counts_for(@selected_date, shift_kind: :day)
     @day_skill_req = @shift_month.required_skill_counts_for(@selected_date)
@@ -447,7 +497,10 @@ end
     token = SecureRandom.hex(8)
     @shift_month.shift_day_assignments.draft.delete_all
 
-    draft_hash = ShiftDrafts::RandomGenerator.new(shift_month: @shift_month).call
+    draft_hash = ShiftDrafts::RandomGenerator.new(
+      shift_month: @shift_month,
+      carry_over_state: build_carry_over_state(shift_month: @shift_month)
+    ).call
 
     ShiftDayAssignment.transaction do
       @shift_month.shift_day_assignments.draft.delete_all # (多重タブの競合対策としてもう一度削除)
@@ -741,6 +794,7 @@ end
     # 最新状態に再構築して、renderする
     @draft = build_draft_hash(scope)
     preload_staffs_for
+    @carry_over_state = build_carry_over_state(shift_month: @shift_month)
 
     dates = (calendar_begin..calendar_end).to_a
 
@@ -836,7 +890,8 @@ end
             row_key: rk,
             shift_month: @shift_month,
             draft: @draft,
-            staff_by_id: @staff_by_id
+            staff_by_id: @staff_by_id,
+            carry_over_state: @carry_over_state
           }
         )
       end
@@ -879,7 +934,8 @@ end
             staff_by_id: @staff_by_id,
             unassigned_display_staffs_by_date: @unassigned_display_staffs_by_date,
             holiday_requests_by_date: holiday_requests_by_date,
-            designations_by_date: designations_by_date
+            designations_by_date: designations_by_date,
+            carry_over_state: @carry_over_state
           }
         )
       end
@@ -1189,6 +1245,7 @@ end
    # preview/edit_draft/show で共通の「集計・アラート・未割当表示」などをまとめてセットする
   def prepare_calendar_page(assignments_hash:)
     preload_staffs_for
+    @carry_over_state = build_carry_over_state(shift_month: @shift_month)
 
     @unassigned_display_staffs_by_date =
       ShiftDrafts::UnassignedDisplayStaffsBuilder
@@ -1258,5 +1315,285 @@ end
       position: 1,
       is_default: true
     )
+  end
+
+  def previous_shift_month_with_confirmed_data(user:, year:, month:)
+    target_date = Date.new(year, month, 1).prev_month
+
+    prev_shift_month = user.shift_months.find_by(
+      year: target_date.year,
+      month: target_date.month
+    )
+    return nil if prev_shift_month.nil?
+
+    has_confirmed =
+      prev_shift_month.shift_day_assignments.confirmed.exists?
+
+    has_confirmed ? prev_shift_month : nil
+  end
+
+  def previous_month_confirmed_assignments_for_carry_over(shift_month:, days: 7)
+    return ShiftDayAssignment.none unless shift_month.carry_over_prev_month_constraints?
+
+    current_month_date = Date.new(shift_month.year, shift_month.month, 1)
+    prev_month_date = current_month_date.prev_month
+
+    prev_shift_month = shift_month.user.shift_months.find_by(
+      year: prev_month_date.year,
+      month: prev_month_date.month
+    )
+    return ShiftDayAssignment.none if prev_shift_month.nil?
+
+    prev_month_begin = Date.new(prev_shift_month.year, prev_shift_month.month, 1)
+    prev_month_end = prev_month_begin.end_of_month
+    from_date = [prev_month_end - (days - 1), prev_month_begin].max
+
+    prev_shift_month.shift_day_assignments
+                    .confirmed
+                    .where(date: from_date..prev_month_end)
+                    .select(:id, :date, :shift_kind, :staff_id, :slot)
+  end
+
+  def build_carry_over_history_by_staff_and_date(assignments)
+    history = Hash.new { |h, staff_id| h[staff_id] = Hash.new { |hh, date| hh[date] = [] } }
+
+    assignments.find_each do |assignment|
+      staff_id = assignment.staff_id.to_i
+      date = assignment.date
+      kind = assignment.shift_kind.to_sym
+
+      history[staff_id][date] << kind
+    end
+
+    history
+  end
+
+  def build_carry_over_state(shift_month:)
+    assignments = previous_month_confirmed_assignments_for_carry_over(shift_month: shift_month, days: 7)
+    history = build_carry_over_history_by_staff_and_date(assignments)
+
+    current_month_begin = Date.new(shift_month.year, shift_month.month, 1)
+    prev_month_end = current_month_begin.prev_day
+
+    state = {}
+
+    history.each do |staff_id, by_date|
+      dates = by_date.keys.sort
+      next if dates.empty?
+
+      last_kinds = Array(by_date[prev_month_end])
+
+      work_streak = trailing_dayish_streak(by_date, dates, prev_month_end)
+      carry_in_kind = nil
+      remaining_required_rest_days = 0
+
+      if last_kinds.include?(:night)
+        carry_in_kind = :night_off
+        remaining_required_rest_days = month_end_night_rest_days(by_date, prev_month_end)
+
+      else
+        month_end_night_off_days = month_end_night_off_rest_days(by_date, prev_month_end)
+        month_end_first_rest_days = month_end_first_rest_after_double_night_rest_days(by_date, prev_month_end)
+
+        if month_end_night_off_days > 0
+          remaining_required_rest_days = month_end_night_off_days
+        elsif month_end_first_rest_days > 0
+          remaining_required_rest_days = month_end_first_rest_days
+        else
+          trailing_rest_days = trailing_non_work_days(by_date, dates, prev_month_end)
+          streak_before_rest = trailing_dayish_streak_before_trailing_rest(by_date, dates, prev_month_end)
+
+          if streak_before_rest >= 5 && trailing_rest_days.positive? && trailing_rest_days < 2
+            remaining_required_rest_days = [remaining_required_rest_days, 2 - trailing_rest_days].max
+          end
+
+          if trailing_double_night?(by_date, prev_month_end - trailing_rest_days) && trailing_rest_days.positive? && trailing_rest_days < 2
+            remaining_required_rest_days = [remaining_required_rest_days, 2 - trailing_rest_days].max
+          end
+
+          if trailing_rest_days.zero?
+            if work_streak >= 5
+              remaining_required_rest_days = [remaining_required_rest_days, 2].max
+            end
+
+            if trailing_double_night?(by_date, prev_month_end)
+              remaining_required_rest_days = [remaining_required_rest_days, 2].max
+            end
+          end
+        end
+      end
+
+      state[staff_id] = {
+        carry_in_kind: carry_in_kind,
+        remaining_required_rest_days: remaining_required_rest_days,
+        carried_work_streak: work_streak
+      }
+    end
+
+    state
+  end
+
+  def trailing_dayish_streak(by_date, dates, end_date)
+    return 0 if dates.blank?
+
+    streak = 0
+    full_range = (dates.min..end_date).to_a
+
+    full_range.reverse_each do |date|
+      kinds = Array(by_date[date])
+
+      if (kinds & [:day, :early, :late]).any?
+        streak += 1
+      else
+        break
+      end
+    end
+
+    streak
+  end
+
+  def trailing_non_work_days(by_date, dates, end_date)
+    return 0 if dates.blank?
+
+    rest_days = 0
+    full_range = (dates.min..end_date).to_a
+
+    full_range.reverse_each do |date|
+      kinds = Array(by_date[date])
+
+      if (kinds & [:day, :early, :late, :night]).any?
+        break
+      else
+        rest_days += 1
+      end
+    end
+
+    rest_days
+  end
+
+  def trailing_dayish_streak_before_trailing_rest(by_date, dates, end_date)
+    return 0 if dates.blank?
+
+    full_range = (dates.min..end_date).to_a
+
+    trailing_rest = 0
+    full_range.reverse_each do |date|
+      kinds = Array(by_date[date])
+
+      if (kinds & [:day, :early, :late, :night]).any?
+        break
+      else
+        trailing_rest += 1
+      end
+    end
+
+    streak = 0
+    work_range_end = end_date - trailing_rest
+    return 0 if work_range_end < dates.min
+
+    (dates.min..work_range_end).to_a.reverse_each do |date|
+      kinds = Array(by_date[date])
+
+      if (kinds & [:day, :early, :late]).any?
+        streak += 1
+      else
+        break
+      end
+    end
+
+    streak
+  end
+
+  def month_end_night_off_rest_days(by_date, prev_month_end)
+    second_night_date = prev_month_end - 1
+    first_night_date  = prev_month_end - 3
+
+    return 0 unless Array(by_date[second_night_date]).include?(:night)
+    return 0 if Array(by_date[prev_month_end]).include?(:night)
+
+    if Array(by_date[first_night_date]).include?(:night)
+      2
+    else
+      1
+    end
+  end
+
+  def trailing_double_night?(by_date, end_date)
+    first_night_date  = end_date - 2
+    second_night_date = end_date
+    middle_date       = end_date - 1
+
+    Array(by_date[first_night_date]).include?(:night) &&
+      Array(by_date[second_night_date]).include?(:night) &&
+      !Array(by_date[middle_date]).include?(:night)
+  end
+
+  def month_end_night_rest_days(by_date, prev_month_end)
+    first_night_date = prev_month_end - 2
+
+    if Array(by_date[first_night_date]).include?(:night)
+      2
+    else
+      1
+    end
+  end
+
+  def month_end_first_rest_after_double_night_rest_days(by_date, prev_month_end)
+    second_night_date = prev_month_end - 2
+    first_night_date  = prev_month_end - 4
+
+    return 0 if Array(by_date[prev_month_end]).include?(:night)
+    return 0 unless Array(by_date[second_night_date]).include?(:night)
+
+    if Array(by_date[first_night_date]).include?(:night)
+      1
+    else
+      0
+    end
+  end
+
+  def clear_conflicts_with_carry_over!(shift_month:)
+    carry_over_state = build_carry_over_state(shift_month: shift_month)
+    return if carry_over_state.blank?
+
+    month_begin = Date.new(shift_month.year, shift_month.month, 1)
+
+    target_dates_by_staff_id = Hash.new { |h, k| h[k] = [] }
+
+    carry_over_state.each do |staff_id, state|
+      next if state.blank?
+
+      carry_in_kind = state[:carry_in_kind]&.to_sym
+      rest_days = state[:remaining_required_rest_days].to_i
+
+      if carry_in_kind == :night_off
+        target_dates_by_staff_id[staff_id] << month_begin
+
+        if rest_days >= 1
+          target_dates_by_staff_id[staff_id] << (month_begin + 1)
+        end
+
+        if rest_days >= 2
+          target_dates_by_staff_id[staff_id] << (month_begin + 2)
+        end
+      else
+        if rest_days >= 1
+          target_dates_by_staff_id[staff_id] << month_begin
+        end
+
+        if rest_days >= 2
+          target_dates_by_staff_id[staff_id] << (month_begin + 1)
+        end
+      end
+    end
+
+    ShiftDayDesignation.transaction do
+      target_dates_by_staff_id.each do |staff_id, dates|
+        dates.uniq.each do |date|
+          shift_month.shift_day_designations.where(staff_id: staff_id, date: date).delete_all
+          shift_month.staff_holiday_requests.where(staff_id: staff_id, date: date).delete_all
+        end
+      end
+    end
   end
 end

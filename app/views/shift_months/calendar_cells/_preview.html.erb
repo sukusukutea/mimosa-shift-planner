@@ -3,10 +3,11 @@
   day_enabled_by_date:, early_enabled_by_date:, late_enabled_by_date:,
   required_by_date:, required_skill_by_date:, alerts_by_date:,
   draft:, staff_by_id:, unassigned_display_staffs_by_date:,
-  holiday_requests_by_date:, designations_by_date:
+  holiday_requests_by_date:, designations_by_date:, carry_over_state:
 %>
 
-<% ctx = shift_day_context(draft, date) %>
+<% ctx = shift_day_context(draft, date, carry_over_state: carry_over_state, shift_month: shift_month) %>
+<% month_begin = Date.new(shift_month.year, shift_month.month, 1) %>
 <% late_time_options_by_id =
      shift_month.shift_month_time_options.late.index_by(&:id) %>
 <% day_rows   = ctx[:day_rows] %>
@@ -14,7 +15,7 @@
 <% late_rows  = ctx[:late_rows] %>
 <% night_rows = ctx[:night_rows] %>
 <% night_sid  = ctx[:night_sid] %>
-<% night_off_sid = ctx[:night_off_sid] %>
+<% night_off_ids = Array(ctx[:night_off_ids]).map(&:to_i) %>
 <% night_related_ids = ctx[:night_related_ids] %>
 
 <% if row_key == :req %>
@@ -109,28 +110,28 @@
               Array((holiday_requests_by_date || {})[date]).find { |request| request.staff_id.to_i == s.id.to_i } %>
 
           <% label =
-               case holiday_request&.holiday_type
-               when "admin_off"
-                 "(休)"
-               when "requested_off"
-                 "(希望休)"
-               when "paid_leave"
-                 "(有休)"
-               else
-                 "(休)"
-               end %>
+              case holiday_request&.holiday_type
+              when "admin_off"
+                "(休)"
+              when "requested_off"
+                "(希望休)"
+              when "paid_leave"
+                "(有休)"
+              else
+                "(休)"
+              end %>
 
           <% css_class =
-               case holiday_request&.holiday_type
-               when "admin_off"
-                 "small text-danger holiday-in-slot holiday-admin-off"
-               when "requested_off"
-                 "small text-danger holiday-in-slot holiday-requested-off"
-               when "paid_leave"
-                 "small text-danger holiday-in-slot holiday-paid-leave"
-               else
-                 "small text-danger"
-               end %>
+              case holiday_request&.holiday_type
+              when "admin_off"
+                "small text-danger holiday-in-slot holiday-admin-off"
+              when "requested_off"
+                "small text-danger holiday-in-slot holiday-requested-off"
+              when "paid_leave"
+                "small text-danger holiday-in-slot holiday-paid-leave"
+              else
+                "small text-danger"
+              end %>
 
           <% if night_related_ids.include?(s.id.to_i) %>
             <div class="small text-danger"><%= s.last_name %></div>
@@ -194,6 +195,8 @@
         <% next if displayed_ids.include?(sid) %>
 
         <% staff = staff_by_id[sid] %>
+        <% carry_state = carry_over_state[sid] %>
+        <% carry_in_kind = carry_state&.dig(:carry_in_kind)&.to_sym %>
         <% next if staff.nil? %>
         <% next if staff.respond_to?(:active?) && !staff.active? %>
         <% next unless row_key_for(staff) == row_key %>
@@ -253,11 +256,15 @@
         <% end %>
       <% end %>
 
-      <% if night_off_sid.to_i > 0 %>
-        <% off_staff = staff_by_id[night_off_sid.to_i] %>
-        <% if off_staff && row_key_for(off_staff) == row_key && night_off_sid.to_i != night_sid.to_i %>
-          <div class="small"><%= off_staff.last_name %>(明け)</div>
-        <% end %>
+      <% night_off_ids.each do |sid| %>
+        <% next if sid <= 0 %>
+        <% next if sid == night_sid.to_i %>
+
+        <% off_staff = staff_by_id[sid] %>
+        <% next if off_staff.nil? %>
+        <% next unless row_key_for(off_staff) == row_key %>
+
+        <div class="small"><%= off_staff.last_name %>(明け)</div>
       <% end %>
     </div>
 
