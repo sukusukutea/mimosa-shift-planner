@@ -4,6 +4,8 @@
   holiday_requests_by_date:, designations_by_date:, staff_by_id
 %>
 
+<% month_begin = Date.new(shift_month.year, shift_month.month, 1) %>
+
 <% if row_key == :req %>
   <%= render "shift_months/calendar_cells/req",
              date: date,
@@ -39,7 +41,7 @@
 
       <% requests = holiday_requests_by_date[date] || [] %>
       <% requests.each do |request| %>
-        <% next unless row_key_for(request.staff) == occupation[:key] %>
+        <% next unless row_key_for(request.staff) == row_key %>
 
         <% label =
             case request.holiday_type
@@ -66,6 +68,25 @@
             end %>
 
         <div class="<%= css_class %>"><%= "#{request.staff.last_name} #{label}" %></div>
+      <% end %>
+
+      <% if date == month_begin || date == month_begin + 1 %>
+        <% staff_by_id.values.each do |staff| %>
+          <% next if staff.blank? %>
+          <% next unless row_key_for(staff) == row_key %>
+
+          <% carry_state = carry_over_state[staff.id] %>
+          <% next if carry_state.blank? %>
+
+          <% carry_label = carry_over_label_for(
+               carry_state: carry_state,
+               date: date,
+               month_begin: month_begin
+             ) %>
+          <% next if carry_label.blank? %>
+
+          <div class="small text-danger"><%= "#{staff.last_name} #{carry_label}" %></div>
+        <% end %>
       <% end %>
     </div>
 

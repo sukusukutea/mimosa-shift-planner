@@ -1,8 +1,9 @@
 module ShiftDrafts
   class RandomGenerator
-    def initialize(shift_month:)
+    def initialize(shift_month:, carry_over_state: {})
       @shift_month = shift_month
       @active_scope = @shift_month.user.staffs.where(active: true)
+      @carry_over_state = carry_over_state || {}
     end
 
     def call
@@ -47,6 +48,7 @@ module ShiftDrafts
 
       # staff_id => Ser[Date, Date, ...]この日の割当を禁止する
       @forced_off_dates_by_staff_id = Hash.new { |h, k| h[k] = Set.new }
+      apply_carry_over_forced_offs!(month_begin: month_begin)
 
       occ_name_by_staff_id = @active_scope
                              .joins(:occupation)
@@ -550,6 +552,37 @@ module ShiftDrafts
       @forced_off_dates_by_staff_id
         .select { |_sid, set| set.include?(date) }
         .keys
+    end
+
+    def apply_carry_over_forced_offs!(month_begin:)
+      return if @carry_over_state.blank?
+
+      day1 = month_begin
+      day2 = month_begin + 1
+
+      @carry_over_state.each do |staff_id, state|
+        sid = staff_id.to_i
+        next if sid <= 0
+        next if state.blank?
+
+        carry_in_kind = state[:carry_in_kind]&.to_sym
+
+        if carry_in_kind == :night_off
+          @forced_off_dates_by_staff_id[sid] << day1
+        end
+
+        rest_days = state[:remaining_required_rest_days].to_i
+
+        if rest_days >= 1
+          rest_start = carry_in_kind == :night_off ? day2 : day1
+          @forced_off_dates_by_staff_id[sid] << rest_start
+        end
+
+        if rest_days >= 2
+          rest_second = carry_in_kind == :night_off ? (day2 + 1) : day2
+          @forced_off_dates_by_staff_id[sid] << rest_second
+        end
+      end
     end
 
     def after_assigned!(staff_id, date:, kind:, month_end:)
