@@ -54,19 +54,21 @@
 
 <%= render "shift_months/frame", toolbar: toolbar, right_sidebar: right_sidebar do %>
   <%= render "shift_months/calendar",
-             weeks: @weeks,
-             shift_month: @shift_month,
-             occupation_order: @occupation_order,
-             holiday_by_date: @holiday_by_date,
-             day_enabled_by_date: @day_enabled_by_date,
-             early_enabled_by_date: @early_enabled_by_date,
-             late_enabled_by_date: @late_enabled_by_date,
-             night_enabled_by_date: @night_enabled_by_date,
-             day_effective_by_date: @day_effective_by_date,
-             required_by_date: @required_by_date,
-             cell_partial: "shift_months/calendar_cells/settings",
-             extra_locals: { holiday_requests_by_date: @holiday_requests_by_date },
-             designations_by_date: @designations_by_date,
-             staff_by_id: @staff_by_id,
-             carry_over_state: @carry_over_state %>
+              weeks: @weeks,
+              shift_month: @shift_month,
+              occupation_order: @occupation_order,
+              holiday_by_date: @holiday_by_date,
+              day_enabled_by_date: @day_enabled_by_date,
+              early_enabled_by_date: @early_enabled_by_date,
+              late_enabled_by_date: @late_enabled_by_date,
+              night_enabled_by_date: @night_enabled_by_date,
+              day_effective_by_date: @day_effective_by_date,
+              required_by_date: @required_by_date,
+              cell_partial: "shift_months/calendar_cells/settings",
+              extra_locals: {
+                holiday_requests_by_date: @holiday_requests_by_date
+              },
+              designations_by_date: @designations_by_date,
+              staff_by_id: @staff_by_id,
+              carry_over_state: @carry_over_state %>
 <% end %>

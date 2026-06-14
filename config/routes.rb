@@ -26,7 +26,7 @@ Rails.application.routes.draw do
       post :update_designation
       delete :remove_designation
 
-      post :add_staff_holiday
+      post :bulk_add_staff_holidays
       delete :remove_staff_holiday
 
       post :generate_draft      # シフト案生成→previewへ
