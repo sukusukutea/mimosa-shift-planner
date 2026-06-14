@@ -504,3 +504,139 @@ body.sidebar-left-collapsed #sidebar-col {
   flex-direction: column;
   gap: 0.05rem;        /* ラベル⇔トグルの間隔 */
 }
+
+.holiday-picker-wrap {
+  position: relative;
+}
+
+.flatpickr-calendar {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.10);
+  padding: 4px;
+  width: 220px;
+  font-size: 10px;
+  z-index: 9999;
+}
+
+.flatpickr-calendar.inline {
+  display: block;
+  position: static;
+  box-shadow: none;
+  margin-top: 6px;
+}
+
+.flatpickr-months {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.flatpickr-prev-month,
+.flatpickr-next-month {
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 6px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.flatpickr-current-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.flatpickr-weekdays {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.flatpickr-weekdaycontainer {
+  display: grid !important;
+  grid-template-columns: repeat(7, 1fr);
+  width: 100%;
+}
+
+.flatpickr-weekday {
+  text-align: center;
+  font-size: 10px;
+  color: #666;
+  font-weight: 600;
+}
+
+.flatpickr-days {
+  width: 100% !important;
+}
+
+.dayContainer {
+  display: grid !important;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+}
+
+.flatpickr-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  max-width: none !important;
+  width: 100%;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.flatpickr-day:hover {
+  background: #f3f4f6;
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+  background: #0d6efd;
+  color: #fff;
+}
+
+.flatpickr-day.today {
+  border: 1px solid #0d6efd;
+}
+
+.flatpickr-day.prevMonthDay,
+.flatpickr-day.nextMonthDay {
+  color: #bbb;
+}
+
+.flatpickr-day.flatpickr-disabled {
+  color: #ddd;
+  cursor: default;
+}
+
+.numInputWrapper {
+  display: inline-flex;
+  align-items: center;
+}
+
+.flatpickr-current-month input.cur-year {
+  width: 52px;
+  border: none;
+  background: transparent;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  border: none;
+  background: transparent;
+  font-weight: 600;
+  font-size: 11px;
+}

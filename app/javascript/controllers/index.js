@@ -33,3 +33,6 @@ application.register("dayopt-wdays", DayoptWdaysController)
 
 import SyncScrollController from "./sync_scroll_controller"
 application.register("sync-scroll", SyncScrollController)
+
+import HolidayMultiSelectController from "./holiday_multi_select_controller"
+application.register("holiday-multi-select", HolidayMultiSelectController)

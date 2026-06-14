@@ -2,7 +2,7 @@ class ShiftMonthsController < ApplicationController
   before_action :authenticate_user!
   before_action :require_organization!
   before_action :set_shift_month, only: [:settings, :update_settings, :update_daily,
-                                        :generate_draft, :preview, :edit_draft, :confirm_draft, :show, :add_staff_holiday,
+                                        :generate_draft, :preview, :edit_draft, :confirm_draft, :show, :bulk_add_staff_holidays,
                                         :remove_staff_holiday, :update_weekday_requirements, :update_designation,
                                         :remove_designation, :update_draft_assignment, :start_edit_from_confirmed,
                                         :export_excel, :sync_weekday_requirements, :add_month_time_option,
@@ -357,33 +357,76 @@ class ShiftMonthsController < ApplicationController
     redirect_to settings_shift_month_path(@shift_month, tab: "daily", date: params[:date], designation_staff_id: staff_id)
   end
 
-  def add_staff_holiday
-    force = params[:force].to_s == "1"
-    date  = Date.iso8601(params[:date])
+  def bulk_add_staff_holidays
     staff = current_user.staffs.find(params[:staff_id])
+    holiday_type = params[:holiday_type].presence || "requested_off"
+    force_mode = params[:force_mode].to_s
 
-    conflicts = @shift_month.shift_day_designations.where(date: date, staff_id: staff.id)
-    if !force && conflicts.exists?
-      flash[:conflict] = {
-        kind: "holiday_over_designation",
-        staff_id: staff.id,
-        date: date.iso8601
-      }
-      redirect_to settings_shift_month_path(@shift_month, tab: "holiday", staff_id: staff.id)
+    dates = Array(params[:dates]).filter_map do |d|
+      Date.iso8601(d)
+    rescue ArgumentError
+      nil
+    end
+
+    if dates.blank?
+      redirect_to settings_shift_month_path(@shift_month, tab: "holiday", staff_id: staff.id),
+                  alert: "日付を選択してください"
       return
     end
 
-    conflicts.delete_all
+    conflicts = @shift_month.shift_day_designations
+                            .where(staff_id: staff.id, date: dates)
+                            .order(:date)
 
-    holiday_type = params[:holiday_type].presence || "admin_off"
+    conflict_dates = conflicts.pluck(:date).uniq
 
-    request = @shift_month.staff_holiday_requests.find_or_initialize_by(staff: staff, date: date)
-    request.holiday_type = holiday_type
-    request.save!
+    if conflict_dates.present? && force_mode.blank?
+      redirect_to settings_shift_month_path(
+        @shift_month,
+        tab: "holiday",
+        staff_id: staff.id,
+        holiday_type: holiday_type,
+        dates: dates.map(&:iso8601),
+        conflict_dates: conflict_dates.map(&:iso8601)
+      )
+      return
+    end
 
-    redirect_to settings_shift_month_path(@shift_month, tab: "holiday", staff_id: staff.id), notice: "休日設定を追加しました"
-  rescue ArgumentError
-    redirect_to settings_shift_month_path(@shift_month, tab: "holiday", staff_id: params[:staff_id]), alert: "日付の形式が正しくありません"
+    target_dates =
+      case force_mode
+      when "skip_conflicts"
+        dates - conflict_dates
+      when "override_conflicts"
+        dates
+      else
+        dates
+      end
+
+    if force_mode == "override_conflicts"
+      @shift_month.shift_day_designations.where(staff_id: staff.id, date: conflict_dates).delete_all
+    end
+
+    ActiveRecord::Base.transaction do
+      target_dates.each do |date|
+        request = @shift_month.staff_holiday_requests.find_or_initialize_by(staff: staff, date: date)
+        request.holiday_type = holiday_type
+        request.save!
+      end
+    end
+
+    added_count = target_dates.size
+    skipped_count = dates.size - target_dates.size
+
+    notice =
+      if skipped_count.positive?
+        "休日設定を#{added_count}日追加しました。#{skipped_count}日は勤務指定を優先して除外しました。"
+      else
+        "休日設定を#{added_count}日追加しました。"
+      end
+
+    redirect_to settings_shift_month_path(@shift_month, tab: "holiday", staff_id: staff.id), notice: notice
+  rescue ActiveRecord::RecordNotFound
+    redirect_to settings_shift_month_path(@shift_month, tab: "holiday"), alert: "職員が見つかりません"
   end
 
   def add_month_time_option
@@ -1201,6 +1244,22 @@ end
       end
 
     @holiday_requests_by_date = @shift_month.staff_holiday_requests.includes(:staff).group_by(&:date)
+
+    @selected_holiday_dates =
+      Array(params[:dates]).filter_map do |d|
+        Date.iso8601(d)
+      rescue ArgumentError
+        nil
+      end
+
+    @selected_holiday_type = params[:holiday_type].presence || "requested_off"
+
+    @holiday_conflict_dates =
+      Array(params[:conflict_dates]).filter_map do |d|
+        Date.iso8601(d)
+      rescue ArgumentError
+      nil
+      end
   end
 
   def prepare_month_tab_vars

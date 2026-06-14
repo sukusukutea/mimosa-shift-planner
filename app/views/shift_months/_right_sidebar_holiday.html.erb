@@ -1,35 +1,53 @@
-<% conflict = flash[:conflict]&.to_h %>
-<% if conflict && conflict["kind"] == "holiday_over_designation" %>
+<% if @holiday_conflict_dates.present? && @selected_staff.present? %>
   <div class="alert alert-warning py-2 px-2 small">
     <div class="fw-bold mb-1">登録の確認</div>
     <div class="mb-2">
-      この日は勤務指定があります。勤務指定を取り消して休日希望を登録しますか？
-      <span class="text-muted ms-1">（<%= Date.iso8601(conflict["date"]).strftime("%-m/%-d") rescue conflict["date"] %>）</span>
+      選択した日付のうち、勤務指定と重複する日があります。どちらを優先しますか？
     </div>
 
-    <div class="d-flex gap-2">
-      <%= form_with url: add_staff_holiday_shift_month_path(@shift_month),
+    <div class="mb-2 small text-muted">
+      衝突日:
+      <%= @holiday_conflict_dates.map { |d| d.strftime("%-m/%-d") }.join("、") %>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+      <%= form_with url: bulk_add_staff_holidays_shift_month_path(@shift_month),
                     method: :post,
                     local: true,
                     class: "m-0" do %>
-        <%= hidden_field_tag :staff_id, conflict["staff_id"] %>
-        <%= hidden_field_tag :date, conflict["date"] %>
-        <%= hidden_field_tag :force, "1" %>
-        <%= button_tag "はい（上書き）", class: "btn btn-sm btn-warning" %>
+        <%= hidden_field_tag :staff_id, @selected_staff.id %>
+        <%= hidden_field_tag :holiday_type, @selected_holiday_type %>
+        <% @selected_holiday_dates.each do |d| %>
+          <%= hidden_field_tag "dates[]", d.iso8601 %>
+        <% end %>
+        <%= hidden_field_tag :force_mode, "override_conflicts" %>
+        <%= button_tag "休日希望を優先する", class: "btn btn-sm btn-warning" %>
       <% end %>
 
-      <%= link_to "いいえ",
-                  settings_shift_month_path(@shift_month, tab: "holiday", staff_id: conflict["staff_id"]),
+      <%= form_with url: bulk_add_staff_holidays_shift_month_path(@shift_month),
+                    method: :post,
+                    local: true,
+                    class: "m-0" do %>
+        <%= hidden_field_tag :staff_id, @selected_staff.id %>
+        <%= hidden_field_tag :holiday_type, @selected_holiday_type %>
+        <% @selected_holiday_dates.each do |d| %>
+          <%= hidden_field_tag "dates[]", d.iso8601 %>
+        <% end %>
+        <%= hidden_field_tag :force_mode, "skip_conflicts" %>
+        <%= button_tag "勤務指定を優先する", class: "btn btn-sm btn-outline-secondary" %>
+      <% end %>
+
+      <%= link_to "キャンセル",
+                  settings_shift_month_path(@shift_month, tab: "holiday", staff_id: @selected_staff.id),
                   class: "btn btn-sm btn-light border" %>
     </div>
   </div>
-<% end %>                           
+<% end %>
 
 <%= form_with model: @shift_month,
               url: update_settings_shift_month_path(@shift_month),
               method: :patch,
               local: true do |f| %>
-
   <div class="mb-3">
     <p class="fw-bold small">今月の休日日数</p>
     <label class="form-label small">全職員共通</label>
@@ -56,52 +74,73 @@
                 local: true do %>
     <%= hidden_field_tag :tab, "holiday" %>
 
-    <div class="d-flex gap-2 align-items-end">
-      <div class="flex-grow-1">
-        <%= select_tag :staff_id,
-            options_for_select(
-              @all_staffs.select(&:active?).map { |staff| ["#{staff.last_name} #{staff.first_name}", staff.id] },
-              @selected_staff&.id
-            ),
-            include_blank: "職員を選択",
-            class: "form-select form-select-sm" %>
-      </div>
-      <div>
-        <%= submit_tag "表示", class:"btn btn-sm btn-light border" %>
-      </div>
+    <div class="flex-grow-1">
+      <%= select_tag :staff_id,
+          options_for_select(
+            @all_staffs.select(&:active?).map { |staff| ["#{staff.last_name} #{staff.first_name}", staff.id] },
+            @selected_staff&.id
+          ),
+          include_blank: "職員を選択",
+          class: "form-select form-select-sm",
+          onchange: "this.form.requestSubmit()" %>
     </div>
   <% end %>
 
   <% if @selected_staff %>
-    <%= form_with url: add_staff_holiday_shift_month_path(@shift_month),
+    <%= form_with url: bulk_add_staff_holidays_shift_month_path(@shift_month),
                   method: :post,
-                  local: true do %>
+                  local: true,
+                  data: { controller: "holiday-multi-select" } do %>
       <%= hidden_field_tag :staff_id, @selected_staff.id %>
 
       <div class="mt-3">
         <label class="form-label small">休日設定</label>
-        <div class="d-flex gap-2 align-items-end">
-          <div class="flex-grow-1">
-            <%= date_field_tag :date,
-                  @month_begin.iso8601,
-                  min: @month_begin.iso8601,
-                  max: @month_end.iso8601,
-                  class: "form-control form-control-sm" %>
-          </div>
 
-          <div style="min-width: 90px;">
+        <div class="d-flex gap-2 align-items-end">
+          <div style="min-width: 120px;">
             <%= select_tag :holiday_type,
                   options_for_select([
                     ["休み", "admin_off"],
                     ["希望休", "requested_off"],
                     ["有休", "paid_leave"]
-                  ], "requested_off"),
+                  ], @selected_holiday_type),
                   class: "form-select form-select-sm" %>
           </div>
         </div>
 
+        <div class="mt-2 holiday-picker-wrap">
+          <%= text_field_tag :holiday_picker,
+                "",
+                class: "d-none",
+                data: {
+                  holiday_multi_select_target: "input",
+                  min_date: @month_begin.iso8601,
+                  max_date: @month_end.iso8601
+                },
+                autocomplete: "off" %>
+        </div>
+
+        <div class="small mt-2">
+          選択中:
+          <span data-holiday-multi-select-target="summary">
+            <% if @selected_holiday_dates.present? %>
+              <%= @selected_holiday_dates.sort.map { |d| d.strftime("%-m/%-d") }.join("、") %>
+            <% else %>
+              未選択
+            <% end %>
+          </span>
+        </div>
+
+        <% @selected_holiday_dates.each do |date| %>
+          <input
+            type="hidden"
+            name="dates[]"
+            value="<%= date.iso8601 %>"
+            data-holiday-multi-select-target="hiddenDates">
+        <% end %>
+
         <div class="d-flex justify-content-end mt-2">
-          <%= submit_tag "+追加", class: "btn btn-sm btn-light border" %>
+          <%= submit_tag "まとめて追加", class: "btn btn-sm btn-light border" %>
         </div>
       </div>
     <% end %>
@@ -116,8 +155,8 @@
               <span>
                 <%= request.date.strftime("%-m/%-d") %>
                 <% label =
-                     case request.holiday_type
-                     when "admin_off"
+                    case request.holiday_type
+                    when "admin_off"
                       "休み"
                     when "requested_off"
                       "希望休"
