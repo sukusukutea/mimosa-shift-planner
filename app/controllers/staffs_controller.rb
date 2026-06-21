@@ -105,6 +105,7 @@ class StaffsController < ApplicationController
       :workday_constraint,
       :assignment_policy,
       :weekly_workdays,
+      :count_fixed_in_weekday_requirements,
       staff_day_time_options_attributes: [
         :id,
         :time_text,

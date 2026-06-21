@@ -86,28 +86,56 @@
 
         <div id="fixed-group" class="d-flex align-items-start flex-wrap gap-3">
           <label class="d-flex align-items-center gap-1 mb-0 mt-1"
-                 style="min-width: 100px;">
+                style="min-width: 100px;">
             <%= f.radio_button :workday_constraint, "fixed",
                     checked: @staff.workday_constraint == "fixed",
                     data: { action: "change->workdayConstraint" } %>
             出勤日固定
           </label>
 
-          <fieldset
-            id="workable-wdays-fieldset"
-            class="mt-2 workable-wdays <%= fixed ? "is-enabled" : "is-disabled" %>"
-            <%= "disabled" unless fixed %>>
-            <div class="small text-muted mb-1">出勤日</div>
+          <div class="mt-2">
+            <fieldset
+              id="workable-wdays-fieldset"
+              class="workable-wdays <%= fixed ? "is-enabled" : "is-disabled" %>"
+              <%= "disabled" unless fixed %>>
+              <div class="small text-muted mb-1">出勤日</div>
 
-            <div class="d-flex flex-wrap gap-2 small">
-              <% 7.times do |i| %>
-                <label class="d-flex align-items-center gap-1">
-                  <%= check_box_tag "staff[workable_wdays][]", i, checked_workable.include?(i) %>
-                  <%= wdays[i] %>
-                </label>
-              <% end %>
-            </div>
-          </fieldset>
+              <div class="d-flex flex-wrap gap-2 small">
+                <% 7.times do |i| %>
+                  <label class="d-flex align-items-center gap-1">
+                    <%= check_box_tag "staff[workable_wdays][]", i, checked_workable.include?(i) %>
+                    <%= wdays[i] %>
+                  </label>
+                <% end %>
+              </div>
+            </fieldset>
+
+            <fieldset
+              id="count-fixed-in-weekday-requirements-fieldset"
+              class="mt-2 small workable-wdays <%= fixed ? "is-enabled" : "is-disabled" %>"
+              <%= "disabled" unless fixed %>>
+
+              <div class="form-check">
+                <%= f.radio_button :count_fixed_in_weekday_requirements,
+                    true,
+                    class: "form-check-input",
+                    disabled: !fixed %>
+                <%= f.label :count_fixed_in_weekday_requirements_true,
+                    "曜日別人員配置の人数に含める",
+                    class: "form-check-label small" %>
+              </div>
+
+              <div class="form-check">
+                <%= f.radio_button :count_fixed_in_weekday_requirements,
+                    false,
+                    class: "form-check-input",
+                    disabled: !fixed %>
+                <%= f.label :count_fixed_in_weekday_requirements_false,
+                    "曜日別人員配置の人数に含めない",
+                    class: "form-check-label small" %>
+              </div>
+            </fieldset>
+          </div>
         </div>
         <div id="weekly-group" class="d-flex align-items-start flex-wrap gap-3">
           <label class="d-flex align-items-center gap-1 mb-0 mt-1"

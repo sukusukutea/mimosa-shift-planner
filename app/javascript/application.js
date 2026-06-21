@@ -7,6 +7,7 @@ function updateWorkdayConstraintUI(value) {
   const workable    = document.getElementById("workable-wdays-fieldset");
   const unworkable  = document.getElementById("unworkable-wdays-fieldset");
   const weeklyField = document.getElementById("weekly-workdays-field");
+  const fixedCountFieldset = document.getElementById("count-fixed-in-weekday-requirements-fieldset")
 
   const isFixed  = (value === "fixed");
   const isFree   = (value === "free");
@@ -16,6 +17,16 @@ function updateWorkdayConstraintUI(value) {
     workable.disabled = !isFixed;
     workable.classList.toggle("is-enabled", isFixed);
     workable.classList.toggle("is-disabled", !isFixed);
+  }
+
+  if (fixedCountFieldset) {
+    fixedCountFieldset.disabled = !isFixed
+    fixedCountFieldset.classList.toggle("is-enabled", isFixed)
+    fixedCountFieldset.classList.toggle("is-disabled", !isFixed)
+
+    fixedCountFieldset.querySelectorAll('input[type="radio"]').forEach((radio) => {
+      radio.disabled = !isFixed
+    })
   }
 
   const enableUnworkable = isFree;

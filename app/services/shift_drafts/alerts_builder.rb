@@ -272,6 +272,8 @@ module ShiftDrafts
 
         staff = @staff_by_id[sid.to_i]
         next if staff.nil?
+        next unless staff.counts_toward_requirements?
+
         occ_name = staff.occupation&.name.to_s
 
         nurse += 1 if occ_name.include?("看護")
@@ -293,6 +295,7 @@ module ShiftDrafts
 
         staff = @staff_by_id[sid.to_i]
         next if staff.nil?
+        next unless staff.counts_toward_requirements?
 
         drive += 1 if staff.respond_to?(:can_drive) && staff.can_drive
         cook  += 1 if staff.respond_to?(:can_cook)  && staff.can_cook

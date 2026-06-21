@@ -101,7 +101,7 @@ module ShiftDrafts
 
             fixed_staffs = scope
               .where(can_day: true)
-              .where(assignment_policy: :required)
+              .where(workday_constraint: :fixed)
               .left_joins(:staff_workable_wdays)
               .where(staff_workable_wdays: { wday: ShiftMonth.ui_wday(date) })
               .where.not(id: holiday_ids + forced_off_ids)
@@ -109,7 +109,6 @@ module ShiftDrafts
               .includes(:occupation)
 
             day_rows = Array(day_hash[:day])
-            slot = day_rows.size
 
             fixed_staffs.each do |staff|
               add_row_and_track!(
@@ -133,9 +132,13 @@ module ShiftDrafts
               slot: slot
             )
 
-            current_staff_ids = day_rows.map { |r| r[:staff_id] }.compact.map(&:to_i)
-            have_nurse = current_staff_ids.count { |sid| occ_name_by_staff_id[sid].to_s.include?("看護") }
-            have_care  = current_staff_ids.count { |sid| occ_name_by_staff_id[sid].to_s.include?("介護") }
+            uncounted_fixed_ids =
+              fixed_staffs.reject(&:counts_toward_requirements?).map(&:id)
+            current_counted_staff_ids =
+              day_rows.map { |r| r[:staff_id] }.compact.map(&:to_i) - uncounted_fixed_ids
+
+            have_nurse = current_counted_staff_ids.count { |sid| occ_name_by_staff_id[sid].to_s.include?("看護") }
+            have_care  = current_counted_staff_ids.count { |sid| occ_name_by_staff_id[sid].to_s.include?("介護") }
 
             need_nurse = [counts[:nurse] - have_nurse, 0].max
             need_care  = [counts[:care]  - have_care,  0].max
@@ -330,12 +333,18 @@ module ShiftDrafts
     def fill_day_skills!(day_rows:, date:, skill_counts:, assigned_today:, holiday_ids:, scope:, slot:)
       day_staff_ids = day_rows.map { |row| row[:staff_id] }.compact.map(&:to_i)
 
-      drive_have = 0
-      cook_have  = 0
-      if day_staff_ids.any?
-        drive_have = scope.where(id: day_staff_ids, can_drive: true).count
-        cook_have  = scope.where(id: day_staff_ids, can_cook:  true).count
-      end
+      counted_day_staffs =
+        if day_staff_ids.any?
+          scope
+            .where(id: day_staff_ids)
+            .includes(:occupation)
+            .reject { |staff| !staff.counts_toward_requirements? }
+        else
+          []
+        end
+
+      drive_have = counted_day_staffs.count { |staff| staff.respond_to?(:can_drive) && staff.can_drive }
+      cook_have  = counted_day_staffs.count { |staff| staff.respond_to?(:can_cook)  && staff.can_cook }
 
       need_drive = [skill_counts[:drive].to_i - drive_have, 0].max
       need_cook  = [skill_counts[:cook].to_i  - cook_have,  0].max
