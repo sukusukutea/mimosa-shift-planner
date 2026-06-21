@@ -109,9 +109,11 @@ module ShiftDrafts
           if worked_dayish?(sid, date)
             streak += 1
 
-            # 6日目以降に表示
-            if streak == 6
-              (alerts[date] ||= []) << "#{staff_label(sid)}5連勤超"
+            max_days = max_consecutive_work_days_for(sid)
+
+            # 個別の最大連勤日数を超えた日に表示
+            if streak == max_days + 1
+              (alerts[date] ||= []) << "#{staff_label(sid)}#{max_days}連勤超"
             end
 
             # 5連勤に到達した日に、翌日/翌々日の「２連休が成立しているか」チェック
@@ -310,6 +312,15 @@ module ShiftDrafts
 
       v = row["staff_id"] || row[:staff_id]
       v.present? ? v.to_i : nil
+    end
+
+    def max_consecutive_work_days_for(staff_id)
+      staff = @staff_by_id[staff_id.to_i]
+      return 5 if staff.nil?
+      return 5 unless staff.workday_constraint.to_s == "free"
+
+      days = staff.max_consecutive_work_days.to_i
+      days.clamp(1, 5)
     end
   end
 end

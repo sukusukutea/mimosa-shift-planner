@@ -7,7 +7,9 @@ function updateWorkdayConstraintUI(value) {
   const workable    = document.getElementById("workable-wdays-fieldset");
   const unworkable  = document.getElementById("unworkable-wdays-fieldset");
   const weeklyField = document.getElementById("weekly-workdays-field");
-  const fixedCountFieldset = document.getElementById("count-fixed-in-weekday-requirements-fieldset")
+  const fixedCountFieldset = document.getElementById("count-fixed-in-weekday-requirements-fieldset");
+  const maxConsecutiveGroup = document.getElementById("max-consecutive-work-days-group");
+  const maxConsecutiveSelect = document.getElementById("staff_max_consecutive_work_days");
 
   const isFixed  = (value === "fixed");
   const isFree   = (value === "free");
@@ -35,6 +37,15 @@ function updateWorkdayConstraintUI(value) {
     unworkable.disabled = !enableUnworkable;
     unworkable.classList.toggle("is-enabled", enableUnworkable);
     unworkable.classList.toggle("is-disabled", !enableUnworkable);
+  }
+
+  if (maxConsecutiveGroup) {
+    maxConsecutiveGroup.classList.toggle("is-enabled", isFree);
+    maxConsecutiveGroup.classList.toggle("is-disabled", !isFree);
+  }
+
+  if (maxConsecutiveSelect) {
+    maxConsecutiveSelect.disabled = !isFree;
   }
 
   if (weeklyField) {

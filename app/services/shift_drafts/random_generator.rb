@@ -314,7 +314,9 @@ module ShiftDrafts
           candidate_ids.reject do |sid|
             before = @timeline.consecutive_day_count_before(sid, date)
             after  = consecutive_designation_days_after(sid, date)
-            (before + 1 + after) > 5
+            max_days = max_consecutive_work_days_for(sid)
+
+            (before + 1 + after) > max_days
           end
       end
 
@@ -704,6 +706,15 @@ module ShiftDrafts
 
         assigned_dayish_count_in_week(sid, date) >= limit
       end
+    end
+
+    def max_consecutive_work_days_for(staff_id)
+      staff = @staff_by_id[staff_id.to_i]
+      return 5 if staff.nil?
+      return 5 unless staff.workday_constraint.to_s == "free"
+
+      days = staff.max_consecutive_work_days.to_i
+      days.clamp(1, 5)
     end
 
     def assigned_kind_count_in_week(staff_id, date, kind)
