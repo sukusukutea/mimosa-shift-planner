@@ -1,35 +1,38 @@
-<div class="container-fluid">
-  <div class="row min-vh-100">
-    <div id="sidebar-col" class="col-md-2 col-lg-2 p-0 bg-light border-end">
+<div class="container-fluid px-0">
+  <div class="d-flex min-vh-100 flex-nowrap">
+    <div class="p-0 flex-shrink-0" style="width: 195px; background-color:#e6f0f0;">
       <%= render "layouts/sidebar" %>
     </div>
 
-    <div id="main-content" class="col-md-8 col-lg-8 p-4 d-flex flex-column"
-        style="height: 100vh;"
-        data-controller="sync-scroll">
+    <div id="main-content"
+         class="flex-grow-1 p-4 d-flex flex-column overflow-hidden"
+         style="height: 100vh; min-width: 0;"
+         data-controller="sync-scroll">
       <%= toolbar %>
 
       <div class="shift-calendar-area flex-grow-1 d-flex flex-column overflow-hidden" style="min-height: 0;">
         <div class="shift-calendar-sticky-scroll"
-            data-sync-scroll-target="sticky"
-            data-action="scroll->sync-scroll#scrollSticky">
+             data-sync-scroll-target="sticky"
+             data-action="scroll->sync-scroll#scrollSticky">
           <div class="shift-calendar-sticky-scroll-inner"
-              data-sync-scroll-target="stickyInner"></div>
+               data-sync-scroll-target="stickyInner"></div>
         </div>
 
         <div class="shift-calendar-viewport flex-grow-1 overflow-auto"
-            data-sync-scroll-target="main"
-            data-action="scroll->sync-scroll#scrollMain">
+             data-sync-scroll-target="main"
+             data-action="scroll->sync-scroll#scrollMain">
           <div class="shift-calendar"
-              data-controller="drag-scroll"
-              data-action="mousedown->drag-scroll#down mousemove->drag-scroll#move mouseup->drag-scroll#up mouseleave->drag-scroll#leave">
+               data-controller="drag-scroll"
+               data-action="mousedown->drag-scroll#down mousemove->drag-scroll#move mouseup->drag-scroll#up mouseleave->drag-scroll#leave">
             <%= yield %>
           </div>
         </div>
       </div>
     </div>
 
-    <div id="right-sidebar-col" class="col-md-2 col-lg-2 p-0 bg-light border-start">
+    <div id="right-sidebar-col"
+         class="p-0 bg-light border-start flex-shrink-0"
+         style="width: 240px;">
       <%= right_sidebar %>
     </div>
   </div>
