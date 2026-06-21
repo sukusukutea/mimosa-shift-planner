@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_24_010740) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_14_083931) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -231,6 +231,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_24_010740) do
     t.boolean "can_late", default: false, null: false
     t.boolean "can_night", default: false, null: false
     t.boolean "can_visit", default: false, null: false
+    t.boolean "count_fixed_in_weekday_requirements", default: true, null: false
     t.datetime "created_at", null: false
     t.string "first_name", null: false
     t.string "first_name_kana", null: false

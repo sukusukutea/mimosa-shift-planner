@@ -74,7 +74,7 @@
                     <%= "#{staff.last_name} #{staff.first_name}" %>
                   </td>
                   <td><%= staff.occupation&.name || "未設定" %></td>
-                  <td class="text-center small" style="white-space: nowrap;">
+                  <td class="text-center small">
                     <% wdays = %w[月 火 水 木 金 土 日] %>
 
                     <% if staff.workday_constraint == "free" %>
@@ -83,26 +83,36 @@
                         -
                         <% if ng.any? %>
                           <span class="small text-muted">
-                          ❎<%= ng.map { |i| "#{wdays[i]}" }.join %>
+                            ❎<%= ng.map { |i| wdays[i] }.join %>
                           </span>
                         <% end %>
                       </span>
+
                     <% elsif staff.workday_constraint == "weekly" %>
                       <% ng = staff.staff_unworkable_wdays.map(&:wday).sort %>
 
-                      <span class="small">
+                      <div class="small">
                         週<%= staff.weekly_workdays %>日
-                      </span>
+                      </div>
 
                       <% if ng.any? %>
-                        <span class="small text-muted">
+                        <div class="small text-muted">
                           ❎<%= ng.map { |i| wdays[i] }.join %>
-                        </span>
+                        </div>
                       <% end %>
 
                     <% else %>
                       <% selected = staff.staff_workable_wdays.map(&:wday).sort %>
-                      <span><%= selected.map { |i| wdays[i] }.join %></span> 
+
+                      <div>
+                        <%= selected.map { |i| wdays[i] }.join %>
+                      </div>
+
+                      <% unless staff.counts_toward_weekday_requirements? %>
+                        <div class="small text-muted">
+                          人数に含めない
+                        </div>
+                      <% end %>
                     <% end %>
                   </td>
 

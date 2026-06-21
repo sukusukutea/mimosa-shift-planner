@@ -116,4 +116,14 @@ class Staff < ApplicationRecord
       end
     end
   end
+
+  def counts_toward_requirements?
+    return true unless workday_constraint.to_s == "fixed"
+
+    count_fixed_in_weekday_requirements?
+  end
+
+  def counts_toward_weekday_requirements?
+    counts_toward_requirements?
+  end
 end
