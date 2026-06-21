@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_14_083931) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_21_011815) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -237,6 +237,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_14_083931) do
     t.string "first_name_kana", null: false
     t.string "last_name", null: false
     t.string "last_name_kana", null: false
+    t.integer "max_consecutive_work_days", default: 5, null: false
     t.bigint "occupation_id", null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false

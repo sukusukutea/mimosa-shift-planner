@@ -65,6 +65,13 @@ class Staff < ApplicationRecord
   validate :only_one_day_time_default_in_form
   validate :day_time_option_apply_wdays_must_not_overlap
 
+  validates :max_consecutive_work_days,
+          numericality: {
+            only_integer: true,
+            greater_than_or_equal_to: 1,
+            less_than_or_equal_to: 5
+          }
+
   class << self
     def human_attribute_name(attr, options = {})
       key = attr.to_s

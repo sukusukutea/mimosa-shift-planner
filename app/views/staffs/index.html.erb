@@ -79,14 +79,21 @@
 
                     <% if staff.workday_constraint == "free" %>
                       <% ng = staff.staff_unworkable_wdays.map(&:wday).sort %>
-                      <span class="text-muted">
+
+                      <div class="text-muted">
                         -
                         <% if ng.any? %>
                           <span class="small text-muted">
                             ❎<%= ng.map { |i| wdays[i] }.join %>
                           </span>
                         <% end %>
-                      </span>
+                      </div>
+
+                      <% if staff.max_consecutive_work_days.to_i != 5 %>
+                        <div class="small text-muted">
+                          最大<%= staff.max_consecutive_work_days %>連勤
+                        </div>
+                      <% end %>
 
                     <% elsif staff.workday_constraint == "weekly" %>
                       <% ng = staff.staff_unworkable_wdays.map(&:wday).sort %>

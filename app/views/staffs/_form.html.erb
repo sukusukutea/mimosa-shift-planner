@@ -58,7 +58,7 @@
         <% fixed = (@staff.workday_constraint == "fixed") %>
         <% free  = !fixed %>
 
-        <div id="free-group" class="d-flex align-items-start flex-wrap gap-3">
+        <div id="free-group" class="d-flex align-items-start gap-3">
           <label class="d-flex align-items-center gap-1 mb-0 mt-1"
                  style="min-width: 100px;">
             <%= f.radio_button :workday_constraint, "free",
@@ -67,21 +67,35 @@
             制限なし
           </label>
 
-          <fieldset
-            id="unworkable-wdays-fieldset"
-            class="mt-2 workable-wdays <%= free ? "is-enabled" : "is-disabled" %>"
-            <%= "disabled" unless free %>>
-            <div class="small text-muted mb-1">勤務除外</div>
+          <div class="mt-2">
+            <fieldset
+              id="unworkable-wdays-fieldset"
+              class="workable-wdays <%= free ? "is-enabled" : "is-disabled" %>"
+              <%= "disabled" unless free %>>
+              <div class="small text-muted mb-1">勤務除外</div>
 
-            <div class="d-flex flex-wrap gap-2 small">
-              <% 7.times do |i| %>
-                <label class="d-flex align-items-center gap-1">
-                  <%= check_box_tag "staff[unworkable_wdays][]", i, checked_unworkable.include?(i) %>
-                  <%= wdays[i] %>
-                </label>
-              <% end %>
+              <div class="d-flex flex-wrap gap-2 small">
+                <% 7.times do |i| %>
+                  <label class="d-flex align-items-center gap-1">
+                    <%= check_box_tag "staff[unworkable_wdays][]", i, checked_unworkable.include?(i) %>
+                    <%= wdays[i] %>
+                  </label>
+                <% end %>
+              </div>
+            </fieldset>
+
+            <div id="max-consecutive-work-days-group"
+                 class="mt-2 d-flex align-items-center gap-2 workable-wdays <%= free ? "is-enabled" : "is-disabled" %>">
+              <%= f.label :max_consecutive_work_days, "最大連勤日数", class: "form-label small mb-0 mt-1" %>
+
+              <%= f.select :max_consecutive_work_days,
+                  options_for_select((1..5).map { |n| ["#{n}日", n] }, @staff.max_consecutive_work_days || 5),
+                  {},
+                  class: "form-select form-select-sm",
+                  style: "width: 80px;",
+                  disabled: !free %>
             </div>
-          </fieldset>
+          </div>
         </div>
 
         <div id="fixed-group" class="d-flex align-items-start flex-wrap gap-3">
