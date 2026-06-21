@@ -24,11 +24,11 @@
   </head>
 
   <body data-controller="sidebar">
-    <nav class="navbar navbar-expand-lg mb-4" style="background-color: #97cdf3; border-bottom: 8px solid #e6f0f0;">
+    <nav class="navbar navbar-expand-lg py-1 mb-2" style="background-color: #97cdf3; border-bottom: 6px solid #e6f0f0;">
       <div class="container d-flex justify-content-between">
         <%= link_to "Mimosa Shift Planner",
                     (user_signed_in? ? dashboard_path : root_path),
-                    class: "navbar-brand text-white fw-bold" %>
+                    class: "navbar-brand text-white fw-bold py-0" %>
 
         <div class="d-flex align-items-center">
           <% if user_signed_in? %>
