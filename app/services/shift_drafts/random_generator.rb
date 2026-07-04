@@ -38,7 +38,29 @@ module ShiftDrafts
                     .group_by(&:date)
                     .transform_values { |rows| rows.map(&:staff_id) }
 
+      @holiday_ids_by_date = holiday_ids_by_date
+      @paid_leave_ids_by_date =
+        @shift_month.staff_holiday_requests
+                    .where(date: month_begin..month_end, holiday_type: :paid_leave)
+                    .group_by(&:date)
+                    .transform_values { |rows| rows.map(&:staff_id) }
+
+      staff_ids = @staff_by_id.keys.map(&:to_i)
+
+      @workable_wdays_by_staff_id =
+        StaffWorkableWday
+          .where(staff_id: staff_ids)
+          .group_by(&:staff_id)
+          .transform_values { |rows| rows.map(&:wday).to_set }
+
+      @unworkable_wdays_by_staff_id =
+        StaffUnworkableWday
+          .where(staff_id: staff_ids)
+          .group_by(&:staff_id)
+          .transform_values { |rows| rows.map(&:wday).to_set }
+
       draft = {}
+      @draft = draft
       @timeline =
         ShiftDrafts::AssignmentTimeline.new(
           dates: (month_begin..month_end).to_a,
@@ -91,7 +113,7 @@ module ShiftDrafts
           end
         end
 
-        fill_order = [:early, :late, :day, :night]
+        fill_order = [:early, :late, :night, :day]
         fill_order.each do |kind|
           next unless enabled_map[kind] # OFFなら割当しない
 
@@ -187,6 +209,14 @@ module ShiftDrafts
 
         draft[date.iso8601] = day_hash # １日のドラフトを格納
       end
+
+      @timeline.call
+      adjust_weekly_day_shortages!(month_begin: month_begin, month_end: month_end)
+
+      @timeline.call
+      adjust_free_holiday_surpluses!(month_begin: month_begin, month_end: month_end)
+
+      @timeline.call
 
       draft
     end
@@ -705,6 +735,325 @@ module ShiftDrafts
       end
     end
 
+    def adjust_weekly_day_shortages!(month_begin:, month_end:)
+      weekly_staffs =
+        @staff_by_id.values.select do |staff|
+          staff.workday_constraint.to_s == "weekly" && staff.weekly_workdays.to_i > 0
+        end
+
+      return if weekly_staffs.blank?
+
+      weeks = week_ranges_for_adjustment(month_begin: month_begin, month_end: month_end)
+
+      weekly_staffs.each do |staff|
+        limit = staff.weekly_workdays.to_i
+        sid = staff.id.to_i
+
+        weeks.each do |week_dates|
+          @timeline.call
+
+          actual =
+            week_dates.count do |date|
+              staff_assigned_dayish_on?(sid, date)
+            end
+
+          paid_leave_count =
+            week_dates.count do |date|
+              paid_leave_on?(sid, date)
+            end
+
+          required_workdays = [limit - paid_leave_count, 0].max
+
+          shortage = required_workdays - actual
+          next if shortage <= 0
+
+          candidate_dates =
+            week_dates
+              .select { |date| can_add_day_for_weekly_adjustment?(staff, date) }
+              .sort_by { |date| [Array(@draft[date.iso8601]&.dig(:day)).size, rand] }
+
+          candidate_dates.first(shortage).each do |date|
+            day_hash = (@draft[date.iso8601] ||= {})
+            rows = (day_hash[:day] ||= [])
+
+            assigned_today = assigned_staff_ids_on(date)
+
+            add_row_and_track!(
+              rows: rows,
+              staff_id: sid,
+              assigned_today: assigned_today,
+              date: date,
+              kind: :day
+            )
+
+            @timeline.call
+          end
+        end
+      end
+    end
+
+    def free_holiday_surplus_targets(month_begin:, month_end:)
+      required_holidays = @shift_month.holiday_days.to_i
+      return [] if required_holidays <= 0
+
+      total_days = (month_begin..month_end).count
+
+      @staff_by_id.values.filter_map do |staff|
+        next unless staff.workday_constraint.to_s == "free"
+
+        sid = staff.id.to_i
+
+        worked_count =
+          (month_begin..month_end).count do |date|
+            staff_assigned_any_kind_on?(sid, date) || night_off_on?(sid, date)
+          end
+
+        paid_leave_count =
+          (month_begin..month_end).count do |date|
+            paid_leave_on?(sid, date)
+          end
+
+        holiday_count = total_days - worked_count - paid_leave_count
+        add_count = holiday_count - required_holidays
+
+        next if add_count <= 0
+
+        {
+          staff: staff,
+          add_count: add_count,
+          holiday_count: holiday_count
+        }
+      end
+    end
+
+    def can_add_day_for_free_holiday_adjustment?(staff, date)
+      return false if staff.nil?
+      return false unless staff.workday_constraint.to_s == "free"
+      return false unless staff.can_day?
+      return false unless enabled_map_on(date)[:day]
+
+      sid = staff.id.to_i
+
+      return false if Array(@holiday_ids_by_date[date]).map(&:to_i).include?(sid)
+      return false if forced_off_staff_ids_on(date).map(&:to_i).include?(sid)
+      return false if night_off_on?(sid, date)
+      return false if staff_assigned_any_kind_on?(sid, date)
+      return false unless day_workable_for_adjustment?(staff, date)
+
+      streak_after_add = consecutive_dayish_count_after_add(sid, date)
+      max_days = max_consecutive_work_days_for(sid)
+
+      streak_after_add < max_days ||
+        max_streak_reached_but_rest_is_already_safe?(staff, date)
+    end
+
+    def adjust_free_holiday_surpluses!(month_begin:, month_end:)
+      targets = free_holiday_surplus_targets(month_begin: month_begin, month_end: month_end)
+      return if targets.blank?
+
+      targets.each do |target|
+        staff = target[:staff]
+        sid = staff.id.to_i
+        remaining = target[:add_count].to_i
+
+        while remaining > 0
+          @timeline.call
+
+          candidate_dates =
+            @dates
+              .select { |date| can_add_day_for_free_holiday_adjustment?(staff, date) }
+              .sort_by { |date| [Array(@draft[date.iso8601]&.dig(:day)).size, rand] }
+
+          date = candidate_dates.first
+          break if date.nil?
+
+          day_hash = (@draft[date.iso8601] ||= {})
+          rows = (day_hash[:day] ||= [])
+
+          assigned_today = assigned_staff_ids_on(date)
+
+          add_row_and_track!(
+            rows: rows,
+            staff_id: sid,
+            assigned_today: assigned_today,
+            date: date,
+            kind: :day
+          )
+
+          remaining -= 1
+        end
+      end
+    end
+
+    def night_off_on?(staff_id, date)
+      prev_date = date - 1
+      return false unless @dates.include?(prev_date)
+
+      prev_hash = @draft[prev_date.iso8601] || {}
+      night_rows = prev_hash[:night] || prev_hash["night"]
+
+      Array(night_rows).any? do |row|
+        extract_staff_id_from_row(row).to_i == staff_id.to_i
+      end
+    end
+
+    def week_ranges_for_adjustment(month_begin:, month_end:)
+      first = month_begin.beginning_of_week(:monday)
+      last  = month_end.end_of_week(:monday)
+
+      ranges = []
+      date = first
+
+      while date <= last
+        week_dates = (date..(date + 6)).to_a
+
+        # monthly / weekly 補正では、月内に7日揃っている週だけ対象にする
+        ranges << week_dates if week_dates.all? { |d| d.between?(month_begin, month_end) }
+
+        date += 7
+      end
+
+      ranges
+    end
+
+    def can_add_day_for_weekly_adjustment?(staff, date)
+      return false if staff.nil?
+      return false unless staff.can_day?
+      return false unless enabled_map_on(date)[:day]
+
+      sid = staff.id.to_i
+
+      return false if Array(@holiday_ids_by_date[date]).map(&:to_i).include?(sid)
+      return false if forced_off_staff_ids_on(date).map(&:to_i).include?(sid)
+      return false if staff_assigned_any_kind_on?(sid, date)
+      return false unless day_workable_for_adjustment?(staff, date)
+
+      # 補正で新しい強制休みを増やさないため、上限到達も避ける
+      consecutive_dayish_count_after_add(sid, date) < max_consecutive_work_days_for(sid)
+    end
+
+    def day_workable_for_adjustment?(staff, date)
+      return false if staff.nil?
+      return false unless staff.can_day?
+
+      wday = ShiftMonth.ui_wday(date)
+      sid = staff.id.to_i
+
+      case staff.workday_constraint.to_s
+      when "free", "weekly"
+        !@unworkable_wdays_by_staff_id.fetch(sid, Set.new).include?(wday)
+      when "fixed"
+        @workable_wdays_by_staff_id.fetch(sid, Set.new).include?(wday)
+      else
+        false
+      end
+    end
+
+    def staff_assigned_any_kind_on?(staff_id, date)
+      dkey = date.iso8601
+      kinds_hash = @draft[dkey] || {}
+
+      ShiftMonth::SHIFT_KINDS.any? do |kind|
+        rows = kinds_hash[kind] || kinds_hash[kind.to_s]
+        Array(rows).any? { |row| extract_staff_id_from_row(row).to_i == staff_id.to_i }
+      end
+    end
+
+    def staff_assigned_dayish_on?(staff_id, date)
+      dkey = date.iso8601
+      kinds_hash = @draft[dkey] || {}
+
+      [:day, :early, :late].any? do |kind|
+        rows = kinds_hash[kind] || kinds_hash[kind.to_s]
+        Array(rows).any? { |row| extract_staff_id_from_row(row).to_i == staff_id.to_i }
+      end
+    end
+
+    def paid_leave_on?(staff_id, date)
+      Array(@paid_leave_ids_by_date[date]).map(&:to_i).include?(staff_id.to_i)
+    end
+
+    def assigned_staff_ids_on(date)
+      dkey = date.iso8601
+      kinds_hash = @draft[dkey] || {}
+
+      ids =
+        kinds_hash.values
+                  .flat_map { |rows| Array(rows).map { |row| extract_staff_id_from_row(row) } }
+                  .compact
+                  .map(&:to_i)
+
+      Set.new(ids)
+    end
+
+    def extract_staff_id_from_row(row)
+      return nil if row.nil?
+
+      if row.is_a?(Hash)
+        value = row[:staff_id] || row["staff_id"]
+        value.present? ? value.to_i : nil
+      else
+        row.present? ? row.to_i : nil
+      end
+    end
+
+    def consecutive_dayish_count_after_add(staff_id, date)
+      sid = staff_id.to_i
+
+      before = 0
+      d = date - 1
+      while @dates.include?(d) && staff_assigned_dayish_on?(sid, d)
+        before += 1
+        d -= 1
+      end
+
+      after = 0
+      d = date + 1
+      while @dates.include?(d) && staff_assigned_dayish_on?(sid, d)
+        after += 1
+        d += 1
+      end
+
+      before + 1 + after
+    end
+
+    def max_streak_reached_but_rest_is_already_safe?(staff, date)
+      return false if staff.nil?
+
+      sid = staff.id.to_i
+      max_days = max_consecutive_work_days_for(sid)
+
+      return false unless consecutive_dayish_count_after_add(sid, date) == max_days
+
+      streak_end = date
+      d = date + 1
+
+      while @dates.include?(d) && staff_assigned_dayish_on?(sid, d)
+        streak_end = d
+        d += 1
+      end
+
+      required_offsets =
+        if max_days >= 5
+          [1, 2]
+        else
+          [1]
+        end
+
+      required_offsets.all? do |offset|
+        rest_date = streak_end + offset
+
+        next true unless @dates.include?(rest_date)
+
+        !staff_assigned_any_kind_on?(sid, rest_date)
+      end
+    end
+
+    def enabled_map_on(date)
+      @enabled_map_cache ||= {}
+      @enabled_map_cache[date] ||= @shift_month.enabled_map_for(date)
+    end
+
     def filter_ids_by_weekly_cap(ids, date)
       Array(ids).reject do |sid|
         staff = @staff_by_id[sid.to_i]
@@ -714,7 +1063,7 @@ module ShiftDrafts
         limit = staff.weekly_workdays.to_i
         next false if limit <= 0
 
-        assigned_dayish_count_in_week(sid, date) >= limit
+        assigned_dayish_count_in_week(sid, date) >= weekly_required_workdays_for(staff, date)
       end
     end
 
@@ -754,6 +1103,21 @@ module ShiftDrafts
       tl.count do |d, k|
         d.respond_to?(:wday) && d.wday == target_wday && k == kind
       end
+    end
+
+    def weekly_required_workdays_for(staff, date)
+      limit = staff.weekly_workdays.to_i
+      return 0 if limit <= 0
+
+      week_begin = date.beginning_of_week(:monday)
+      week_end   = week_begin + 6
+
+      paid_leave_count =
+        (week_begin..week_end).count do |d|
+          @dates.include?(d) && paid_leave_on?(staff.id, d)
+        end
+
+      [limit - paid_leave_count, 0].max
     end
   end
 end

@@ -42,6 +42,7 @@ module ShiftDrafts
       total_days = date_keys.length
       worked_days = Hash.new(0)
       paid_leave_counts = Hash.new(0)
+      paid_leave_by_staff_and_date = Hash.new { |h, k| h[k] = {} }
 
       date_keys.each do |dkey|
         kinds = @draft[dkey] || {}
@@ -69,8 +70,11 @@ module ShiftDrafts
       @shift_month.staff_holiday_requests
                   .where(date: month_begin..month_end, holiday_type: :paid_leave)
                   .find_each do |request|
-        paid_leave_counts[request.staff_id.to_i] += 1
-      end
+          sid = request.staff_id.to_i
+
+          paid_leave_counts[sid] += 1
+          paid_leave_by_staff_and_date[sid][request.date] = true
+        end
 
       required_holidays = @shift_month.holiday_days.to_i
 
@@ -83,7 +87,12 @@ module ShiftDrafts
         holiday_count = total_days - worked_days[sid] - paid_leave_counts[sid]
         is_free = staff.respond_to?(:workday_constraint) && staff.workday_constraint == "free"
         holiday_shortage = is_free && required_holidays > 0 && holiday_count.to_i < required_holidays
-        weekly_shortage_weeks = weekly_shortage_weeks_for(staff, dates, dayish_by_staff_and_date)
+        weekly_shortage_weeks = weekly_shortage_weeks_for(
+          staff,
+          dates,
+          dayish_by_staff_and_date,
+          paid_leave_by_staff_and_date
+        )
         weekly_shortage = weekly_shortage_weeks.any?
 
         {
@@ -131,7 +140,7 @@ module ShiftDrafts
       ranges
     end
 
-    def weekly_shortage_weeks_for(staff, dates, dayish_by_staff_and_date)
+    def weekly_shortage_weeks_for(staff, dates, dayish_by_staff_and_date, paid_leave_by_staff_and_date)
       return [] unless staff&.workday_constraint.to_s == "weekly"
 
       limit = staff.weekly_workdays.to_i
@@ -150,8 +159,19 @@ module ShiftDrafts
         # 月末を含む週で、月内の日付が7日揃わない週は weekly 未達判定から除外
         next if in_month_dates.include?(month_end) && in_month_dates.size < 7
 
-        actual = in_month_dates.count { |d| dayish_by_staff_and_date.dig(sid, d) == true }
-        shortage << (idx + 1) if actual < limit
+        actual =
+          in_month_dates.count do |d|
+            dayish_by_staff_and_date.dig(sid, d) == true
+          end
+
+        paid_leave_count =
+          in_month_dates.count do |d|
+            paid_leave_by_staff_and_date.dig(sid, d) == true
+          end
+
+        required_workdays = [limit - paid_leave_count, 0].max
+
+        shortage << (idx + 1) if actual < required_workdays
       end
 
       shortage
