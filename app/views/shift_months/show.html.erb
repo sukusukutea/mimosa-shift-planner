@@ -27,6 +27,10 @@
              day_effective_by_date: @day_effective_by_date,
              required_by_date: @required_by_date,
              cell_partial: "shift_months/calendar_cells/show",
+             extra_locals: {
+               calendar_mode: :show
+             },
+             saved: @saved,
              saved: @saved,
              staff_by_id: @staff_by_id,
              alerts_by_date: @alerts_by_date,
