@@ -161,6 +161,19 @@ class ShiftMonthsController < ApplicationController
     prepare_month_tab_vars
     @carry_over_state = build_carry_over_state(shift_month: @shift_month)
     @carry_over_source_assignments = previous_month_confirmed_assignments_for_carry_over(shift_month: @shift_month, days: 7).to_a
+    @previous_month_assignments_for_display =
+      build_assignments_hash(
+        previous_month_confirmed_assignments_for_carry_over(shift_month: @shift_month, days: 7)
+          .where(date: @calendar_begin...@month_begin)
+      )
+    @previous_month_unassigned_display_staffs_by_date =
+      ShiftDrafts::UnassignedDisplayStaffsBuilder
+        .new(
+          dates: (@calendar_begin...@month_begin).to_a,
+          staff_by_id: @staff_by_id,
+          assignments_hash: @previous_month_assignments_for_display
+        )
+        .call
     @weekday_requirements = build_weekday_requirements_hash
     @day_req = @shift_month.required_counts_for(@selected_date, shift_kind: :day)
     @day_skill_req = @shift_month.required_skill_counts_for(@selected_date)
@@ -1307,6 +1320,21 @@ end
     preload_staffs_for
     @carry_over_state = build_carry_over_state(shift_month: @shift_month)
 
+    @previous_month_assignments_for_display =
+      build_assignments_hash(
+        previous_month_confirmed_assignments_for_carry_over(shift_month: @shift_month, days: 7)
+          .where(date: @calendar_begin...@month_begin)
+      )
+
+    @previous_month_unassigned_display_staffs_by_date =
+      ShiftDrafts::UnassignedDisplayStaffsBuilder
+        .new(
+          dates: (@calendar_begin...@month_begin).to_a,
+          staff_by_id: @staff_by_id,
+          assignments_hash: @previous_month_assignments_for_display
+        )
+        .call
+
     @unassigned_display_staffs_by_date =
       ShiftDrafts::UnassignedDisplayStaffsBuilder
         .new(dates: @dates, staff_by_id: @staff_by_id, assignments_hash: assignments_hash)
@@ -1422,9 +1450,17 @@ end
     from_date = [prev_month_end - (days - 1), prev_month_begin].max
 
     prev_shift_month.shift_day_assignments
-                    .confirmed
-                    .where(date: from_date..prev_month_end)
-                    .select(:id, :date, :shift_kind, :staff_id, :slot)
+                .confirmed
+                .where(date: from_date..prev_month_end)
+                .select(
+                  :id,
+                  :date,
+                  :shift_kind,
+                  :staff_id,
+                  :slot,
+                  :staff_day_time_option_id,
+                  :shift_month_time_option_id
+                )
   end
 
   def build_carry_over_history_by_staff_and_date(assignments)
