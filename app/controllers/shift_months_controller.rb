@@ -1072,6 +1072,7 @@ end
 
   def sync_weekday_requirements
   @shift_month.copy_weekday_requirements_from_base!(user: current_user)
+  @shift_month.copy_skill_requirements_from_base!(user: current_user)
 
   redirect_to settings_shift_month_path(@shift_month),
               notice: "曜日別人員配置（元設定）をこの月に同期しました。"
@@ -1362,7 +1363,19 @@ end
                 .map { |r| [r.shift_kind.to_s, r.day_of_week.to_i, r.role.to_s, r.required_number.to_i] }
                 .sort
 
-    base_rows != month_rows
+    base_skill_rows =
+      current_user.base_skill_requirements
+                  .select(:day_of_week, :skill, :required_number)
+                  .map { |r| [r.day_of_week.to_i, r.skill.to_s, r.required_number.to_i] }
+                  .sort
+
+    month_skill_rows =
+      shift_month.shift_month_skill_requirements
+                .select(:day_of_week, :skill, :required_number)
+                .map { |r| [r.day_of_week.to_i, r.skill.to_s, r.required_number.to_i] }
+                .sort
+
+    base_rows != month_rows || base_skill_rows != month_skill_rows
   end
 
   def ensure_default_late_time_option!
