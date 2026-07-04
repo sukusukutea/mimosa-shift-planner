@@ -1,9 +1,20 @@
 module ShiftDrafts
   class StatsBuilder
-    def initialize(shift_month:, staff_by_id:, draft:)
+    def initialize(shift_month:, staff_by_id:, draft:, carry_over_state: {})
       @shift_month = shift_month
       @staff_by_id = staff_by_id
       @draft = draft
+      @carry_over_state = carry_over_state || {}
+
+      @first_week_dayish_counts_by_staff_id =
+        @carry_over_state.each_with_object(Hash.new(0)) do |(staff_id, state), hash|
+          hash[staff_id.to_i] = state[:first_week_dayish_count].to_i
+        end
+
+      @first_week_paid_leave_counts_by_staff_id =
+        @carry_over_state.each_with_object(Hash.new(0)) do |(staff_id, state), hash|
+          hash[staff_id.to_i] = state[:first_week_paid_leave_count].to_i
+        end
     end
 
     def call
@@ -140,6 +151,13 @@ module ShiftDrafts
       ranges
     end
 
+    def first_week_dates?(dates_in_week, all_dates)
+      month_begin = all_dates.first
+      return false if month_begin.monday?
+
+      dates_in_week.first == month_begin
+    end
+
     def weekly_shortage_weeks_for(staff, dates, dayish_by_staff_and_date, paid_leave_by_staff_and_date)
       return [] unless staff&.workday_constraint.to_s == "weekly"
 
@@ -168,6 +186,11 @@ module ShiftDrafts
           in_month_dates.count do |d|
             paid_leave_by_staff_and_date.dig(sid, d) == true
           end
+
+        if first_week_dates?(in_month_dates, dates)
+          actual += @first_week_dayish_counts_by_staff_id[sid].to_i
+          paid_leave_count += @first_week_paid_leave_counts_by_staff_id[sid].to_i
+        end
 
         required_workdays = [limit - paid_leave_count, 0].max
 

@@ -1317,7 +1317,8 @@ end
     @stats_rows = ShiftDrafts::StatsBuilder.new(
       shift_month: @shift_month,
       staff_by_id: @staff_by_id,
-      draft: assignments_hash
+      draft: assignments_hash,
+      carry_over_state: @carry_over_state
     ).call
 
     alert_dates = (@month_begin..@month_end).to_a
@@ -1447,6 +1448,19 @@ end
     current_month_begin = Date.new(shift_month.year, shift_month.month, 1)
     prev_month_end = current_month_begin.prev_day
 
+    first_week_begin = current_month_begin.beginning_of_week(:monday)
+    first_week_prev_dates = (first_week_begin...current_month_begin).to_a
+
+    first_week_paid_leave_counts_by_staff_id =
+      if first_week_prev_dates.empty?
+        Hash.new(0)
+      else
+        StaffHolidayRequest
+          .where(date: first_week_prev_dates, holiday_type: :paid_leave)
+          .group(:staff_id)
+          .count
+      end
+
     state = {}
 
     history.each do |staff_id, by_date|
@@ -1495,10 +1509,20 @@ end
         end
       end
 
+      first_week_dayish_count =
+        first_week_prev_dates.count do |date|
+          Array(by_date[date]).any? { |kind| [:day, :early, :late].include?(kind) }
+        end
+
+      first_week_paid_leave_count =
+        first_week_paid_leave_counts_by_staff_id[staff_id].to_i
+
       state[staff_id] = {
         carry_in_kind: carry_in_kind,
         remaining_required_rest_days: remaining_required_rest_days,
-        carried_work_streak: work_streak
+        carried_work_streak: work_streak,
+        first_week_dayish_count: first_week_dayish_count,
+        first_week_paid_leave_count: first_week_paid_leave_counts_by_staff_id[staff_id].to_i
       }
     end
 
