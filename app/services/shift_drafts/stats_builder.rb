@@ -139,12 +139,16 @@ module ShiftDrafts
 
       sid = staff.id.to_i
       weeks = week_ranges_in_month(dates)
+      month_end = dates.last
 
       shortage = []
       weeks.each_with_index do |range, idx|
         # 月外の日は除外（= 月の中の該当日だけ数える）
         in_month_dates = dates.select { |d| range.cover?(d) }
         next if in_month_dates.empty?
+
+        # 月末を含む週で、月内の日付が7日揃わない週は weekly 未達判定から除外
+        next if in_month_dates.include?(month_end) && in_month_dates.size < 7
 
         actual = in_month_dates.count { |d| dayish_by_staff_and_date.dig(sid, d) == true }
         shortage << (idx + 1) if actual < limit
