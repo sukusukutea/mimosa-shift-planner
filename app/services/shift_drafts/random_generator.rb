@@ -612,11 +612,16 @@ module ShiftDrafts
 
       return unless [:day, :early, :late].include?(kind)
 
-      #今日割当する直前までの連続日勤系数
-      before = @timeline.consecutive_day_count_before(staff_id.to_i, date)
+      # 今日割当後の連続日勤系数
+      sid = staff_id.to_i
+      before = @timeline.consecutive_day_count_before(sid, date)
+      streak_after_assignment = before + 1
+      max_days = max_consecutive_work_days_for(sid)
 
-      if before >= 4
-        lock_two_off_days!(staff_id.to_i, date: date, month_end: month_end)
+      if max_days >= 5 && streak_after_assignment >= 5
+        lock_two_off_days!(sid, date: date, month_end: month_end)
+      elsif max_days < 5 && streak_after_assignment >= max_days
+        lock_one_off_day!(sid, date: date, month_end: month_end)
       end
     end
 
@@ -625,6 +630,11 @@ module ShiftDrafts
       d2 = date + 2
       @forced_off_dates_by_staff_id[staff_id] << d1 if d1 <= month_end
       @forced_off_dates_by_staff_id[staff_id] << d2 if d2 <= month_end
+    end
+
+    def lock_one_off_day!(staff_id, date:, month_end:)
+      d1 = date + 1
+      @forced_off_dates_by_staff_id[staff_id] << d1 if d1 <= month_end
     end
 
     def lock_night_flow!(staff_id, date:, month_end:)

@@ -333,6 +333,11 @@ body.sidebar-left-collapsed #sidebar-col {
   color: #666;
 }
 
+.staff-stats-table tr.weekly-staff-row > th,
+.staff-stats-table tr.weekly-staff-row > td {
+  background-color: #eef7ff;
+}
+
 /* =========================================
    edit_draft カレンダー内
 ========================================= */
