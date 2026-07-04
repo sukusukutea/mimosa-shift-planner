@@ -4,6 +4,14 @@ module ShiftDrafts
       @shift_month = shift_month
       @active_scope = @shift_month.user.staffs.where(active: true)
       @carry_over_state = carry_over_state || {}
+      @first_week_dayish_counts_by_staff_id =
+        @carry_over_state.each_with_object(Hash.new(0)) do |(staff_id, state), hash|
+          hash[staff_id.to_i] = state[:first_week_dayish_count].to_i
+        end
+      @first_week_paid_leave_counts_by_staff_id =
+        @carry_over_state.each_with_object(Hash.new(0)) do |(staff_id, state), hash|
+          hash[staff_id.to_i] = state[:first_week_paid_leave_count].to_i
+        end
     end
 
     def call
@@ -735,6 +743,16 @@ module ShiftDrafts
       end
     end
 
+    def weekly_dayish_count_for_generation(staff_id, date)
+      count = assigned_dayish_count_in_week(staff_id, date)
+
+      month_begin = @dates.first
+      return count unless date.beginning_of_week(:monday) == month_begin.beginning_of_week(:monday)
+      return count if month_begin.monday?
+
+      count + @first_week_dayish_counts_by_staff_id[staff_id.to_i].to_i
+    end
+
     def adjust_weekly_day_shortages!(month_begin:, month_end:)
       weekly_staffs =
         @staff_by_id.values.select do |staff|
@@ -757,10 +775,18 @@ module ShiftDrafts
               staff_assigned_dayish_on?(sid, date)
             end
 
+          if first_week_dates?(week_dates)
+            actual += @first_week_dayish_counts_by_staff_id[sid].to_i
+          end
+
           paid_leave_count =
             week_dates.count do |date|
               paid_leave_on?(sid, date)
             end
+
+          if first_week_dates?(week_dates)
+            paid_leave_count += @first_week_paid_leave_counts_by_staff_id[sid].to_i
+          end
 
           required_workdays = [limit - paid_leave_count, 0].max
 
@@ -906,14 +932,27 @@ module ShiftDrafts
 
       while date <= last
         week_dates = (date..(date + 6)).to_a
+        in_month_dates = week_dates.select { |d| d.between?(month_begin, month_end) }
 
-        # monthly / weekly 補正では、月内に7日揃っている週だけ対象にする
-        ranges << week_dates if week_dates.all? { |d| d.between?(month_begin, month_end) }
+        if in_month_dates.present?
+          # 月末の不完全週は、翌月側を見ないので補正対象外
+          unless in_month_dates.include?(month_end) && in_month_dates.size < 7
+            # 月初の不完全週は、前月側の勤務数を使うため補正対象に含める
+            ranges << in_month_dates
+          end
+        end
 
         date += 7
       end
 
       ranges
+    end
+
+    def first_week_dates?(week_dates)
+      month_begin = @dates.first
+      return false if month_begin.monday?
+
+      week_dates.first == month_begin
     end
 
     def can_add_day_for_weekly_adjustment?(staff, date)
@@ -1063,7 +1102,7 @@ module ShiftDrafts
         limit = staff.weekly_workdays.to_i
         next false if limit <= 0
 
-        assigned_dayish_count_in_week(sid, date) >= weekly_required_workdays_for(staff, date)
+        weekly_dayish_count_for_generation(sid, date) >= weekly_required_workdays_for(staff, date)
       end
     end
 
@@ -1111,11 +1150,16 @@ module ShiftDrafts
 
       week_begin = date.beginning_of_week(:monday)
       week_end   = week_begin + 6
+      month_begin = @dates.first
 
       paid_leave_count =
         (week_begin..week_end).count do |d|
           @dates.include?(d) && paid_leave_on?(staff.id, d)
         end
+
+      if !month_begin.monday? && week_begin == month_begin.beginning_of_week(:monday)
+        paid_leave_count += @first_week_paid_leave_counts_by_staff_id[staff.id.to_i].to_i
+      end
 
       [limit - paid_leave_count, 0].max
     end
