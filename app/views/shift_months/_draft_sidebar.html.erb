@@ -16,14 +16,41 @@
     <tbody>
       <% sorted_rows =
           stats_rows
-            .select { |row| ( s = row[:staff]) && s.active? } 
+            .select { |row| (s = row[:staff]) && s.active? }
             .sort_by do |row|
-              c = row[:staff].workday_constraint.to_s
-              (c == "free" || c == "weekly") ? 0 : 1
+              staff = row[:staff]
+
+              constraint_order =
+                case staff.workday_constraint.to_s
+                when "free"
+                  0
+                when "weekly"
+                  1
+                when "fixed"
+                  2
+                else
+                  3
+                end
+
+              [
+                constraint_order,
+                staff.last_name_kana.to_s,
+                staff.first_name_kana.to_s,
+                staff.id.to_i
+              ]
             end
       %>
       <% sorted_rows.each do |row| %>
-        <tr class="<%= row[:staff].workday_constraint == 'fixed' ? 'fixed-staff-row' : '' %>">
+        <tr class="<%= 
+            case row[:staff].workday_constraint.to_s
+            when 'weekly'
+              'weekly-staff-row'
+            when 'fixed'
+              'fixed-staff-row'
+            else
+              ''
+            end
+          %>">
           <% weekly_shortage = row[:weekly_shortage] %>
           <% weekly_weeks = Array(row[:weekly_shortage_weeks]) %>
 
