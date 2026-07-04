@@ -192,6 +192,17 @@
   background: #fafafa;
 }
 
+/* showページ：前月重なりセルを控えめに表示 */
+.shift-calendar-month td.day-cell.is-show-out {
+  background-color: #f1f3f5;
+}
+
+.shift-calendar-month td.day-cell.is-show-out .shift-line,
+.shift-calendar-month td.day-cell.is-show-out .small,
+.shift-calendar-month td.day-cell.is-show-out .holiday-in-slot {
+  opacity: 0.55;
+}
+
 /* 各日のセル内：日勤 / 夜勤 / 宿直 */
 .day-slots {
   display: grid;
@@ -289,16 +300,13 @@
 }
 
 /* 左サイドバー折りたたみ */
-body.sidebar-left-collapsed #sidebar-col {
+body.sidebar-left-collapsed #left-sidebar-col {
   display: none !important;
 }
 
-/* 左が消えた分、中央を広げる */
-@media (min-width: 768px) {
-  body.sidebar-left-collapsed #main-content {
-    flex: 0 0 calc(100% - 16.6666667%);
-    max-width: calc(100% - 16.6666667%);
-  }
+/* 左サイドバー非表示時も、中央はflexで自然に広げる */
+body.sidebar-left-collapsed #main-content {
+  min-width: 0;
 }
 
 /* =========================================

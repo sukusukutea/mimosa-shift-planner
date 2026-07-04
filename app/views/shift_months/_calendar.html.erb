@@ -89,7 +89,7 @@
               <% cell_unassigned_display_staffs_by_date =
                   in_month ? unassigned_display_staffs_by_date : previous_month_unassigned_display_staffs_by_date %>
 
-              <td class="day-cell <%= in_month ? "" : "is-out" %>">
+              <td class="day-cell <%= in_month ? "" : "is-out" %> <%= "is-show-out" if extra[:calendar_mode] == :show && !in_month %>">
                 <%= render cell_partial,
                           {
                             date: date,

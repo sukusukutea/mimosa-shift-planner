@@ -18,7 +18,10 @@ export default class extends Controller {
           defaultDate: presetDates,
           minDate: this.inputTarget.dataset.minDate,
           maxDate: this.inputTarget.dataset.maxDate,
-          locale: Japanese,
+          locale: {
+            ...Japanese,
+            firstDayOfWeek: 1
+          },
           clickOpens: true,
           allowInput: false,
           onChange: this.handleChange.bind(this)
