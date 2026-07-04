@@ -17,6 +17,34 @@
 <% else %>
   <div class="day-slots">
     <div class="slot slot-day" data-shift-kind="day">
+      <% unless in_month %>
+        <% date_key = date.to_s %>
+
+        <% previous_day_rows = Array(draft&.dig(date_key, "day")) %>
+        <% previous_day_rows.each do |row| %>
+          <% s = staff_by_id[row["staff_id"].to_i] %>
+          <% next if s.blank? %>
+          <% next unless row_key_for(s) == row_key %>
+          <div class="small shift-line text-muted"><%= s.last_name %></div>
+        <% end %>
+
+        <% previous_early_rows = Array(draft&.dig(date_key, "early")) %>
+        <% previous_early_rows.each do |row| %>
+          <% s = staff_by_id[row["staff_id"].to_i] %>
+          <% next if s.blank? %>
+          <% next unless row_key_for(s) == row_key %>
+          <div class="small shift-line text-muted"><%= s.last_name %><span class="shift-time">730-1630</span></div>
+        <% end %>
+
+        <% previous_late_rows = Array(draft&.dig(date_key, "late")) %>
+        <% previous_late_rows.each do |row| %>
+          <% s = staff_by_id[row["staff_id"].to_i] %>
+          <% next if s.blank? %>
+          <% next unless row_key_for(s) == row_key %>
+          <div class="small shift-line text-muted"><%= s.last_name %><span class="shift-time">11-20</span></div>
+        <% end %>
+      <% end %>
+
       <% day_ids = Array(designations_by_date.dig(date, "day")).map(&:to_i) %>
       <% day_ids.each do |sid| %>
         <% s = staff_by_id[sid] %>
@@ -91,6 +119,18 @@
     </div>
 
     <div class="slot slot-night" data-shift-kind="night">
+      <% unless in_month %>
+        <% date_key = date.to_s %>
+
+        <% previous_night_rows = Array(draft&.dig(date_key, "night")) %>
+        <% previous_night_rows.each do |row| %>
+          <% s = staff_by_id[row["staff_id"].to_i] %>
+          <% next if s.blank? %>
+          <% next unless row_key_for(s) == row_key %>
+          <div class="small shift-line text-muted"><%= s.last_name %></div>
+        <% end %>
+      <% end %>
+
       <% desig_sid = designations_by_date.dig(date, "night").to_i %>
       <% desig_staff = staff_by_id[desig_sid] %>
       <% if desig_staff.present? && row_key_for(desig_staff) == row_key %>

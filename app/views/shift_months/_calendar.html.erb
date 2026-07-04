@@ -18,7 +18,9 @@
 <% designations_by_date             = local_assigns.fetch(:designations_by_date, {}) || {} %>
 <% holiday_requests_by_date         = local_assigns.fetch(:holiday_requests_by_date, nil) %>
 <% unassigned_display_staffs_by_date = local_assigns.fetch(:unassigned_display_staffs_by_date, nil) %>
+<% previous_month_unassigned_display_staffs_by_date = local_assigns.fetch(:previous_month_unassigned_display_staffs_by_date, @previous_month_unassigned_display_staffs_by_date || {}) || {} %>
 <% carry_over_state                 = local_assigns.fetch(:carry_over_state, {}) || {} %>
+<% previous_month_assignments_for_display = local_assigns.fetch(:previous_month_assignments_for_display, @previous_month_assignments_for_display || {}) || {} %>
 <% extra                            = local_assigns[:extra_locals].is_a?(Hash) ? local_assigns[:extra_locals] : {} %>
 
 <div class="shift-calendar-scroll">
@@ -82,6 +84,10 @@
 
             <% week.each do |date| %>
               <% in_month = (date.month == shift_month.month) %>
+              <% cell_draft = in_month ? draft : previous_month_assignments_for_display %>
+              <% cell_saved = in_month ? saved : previous_month_assignments_for_display %>
+              <% cell_unassigned_display_staffs_by_date =
+                  in_month ? unassigned_display_staffs_by_date : previous_month_unassigned_display_staffs_by_date %>
 
               <td class="day-cell <%= in_month ? "" : "is-out" %>">
                 <%= render cell_partial,
@@ -97,12 +103,12 @@
                             required_by_date: required_by_date,
                             required_skill_by_date: required_skill_by_date,
                             staff_by_id: staff_by_id,
-                            draft: draft,
-                            saved: saved,
+                            draft: cell_draft,
+                            saved: cell_saved,
                             alerts_by_date: alerts_by_date,
                             designations_by_date: designations_by_date,
                             holiday_requests_by_date: holiday_requests_by_date,
-                            unassigned_display_staffs_by_date: unassigned_display_staffs_by_date,
+                            unassigned_display_staffs_by_date: cell_unassigned_display_staffs_by_date,
                             carry_over_state: carry_over_state
                           }.merge(extra) %>
               </td>

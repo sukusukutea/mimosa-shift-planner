@@ -7,6 +7,7 @@
 %>
 
 <% month_begin = Date.new(shift_month.year, shift_month.month, 1) %>
+<% display_month_cell = in_month || date < month_begin %>
 <% ctx = shift_day_context(saved, date, carry_over_state: carry_over_state, shift_month: shift_month) %>
 <% late_time_options_by_id =
      shift_month.shift_month_time_options.late.index_by(&:id) %>
@@ -50,10 +51,10 @@
 <% else %>
   <div class="day-slots">
     <div class="slot slot-day">
-    <% if row_key == :care && in_month %>
+    <% if row_key == :care && display_month_cell %>
       <%# 介護だけ：固定順名簿で「勤務 or 休み」を表示 %>
       <% care_staffs =
-           staff_by_id.values
+          staff_by_id.values
                       .select { |s| s && row_key_for(s) == :care }
                       .sort_by do |s|
                         [
@@ -210,7 +211,7 @@
       <% end %>
 
       <%# 未割当(休み)表示：その月だけ %>
-      <% if in_month %>
+      <% if display_month_cell %>
         <% unassigned_staffs = (unassigned_display_staffs_by_date && unassigned_display_staffs_by_date[date]) || [] %>
         <% unassigned_staffs.each do |staff| %>
           <% next if staff.nil? || !staff.active? %>
@@ -224,7 +225,7 @@
       <% end %>
     <% end %>
 
-    <% if !(row_key == :care && in_month) %>
+    <% if !(row_key == :care && display_month_cell) %>
       <% early_rows.each do |row| %>
         <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
         <% staff = staff_by_id[sid] %>
