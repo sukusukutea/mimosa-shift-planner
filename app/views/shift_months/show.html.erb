@@ -1,9 +1,17 @@
 <% toolbar = capture do %>
-  <div class="d-flex align-items-center gap-2 mb-3">
+  <div class="d-flex align-items-center gap-2 mb-1" data-controller="left-sidebar">
+    <button type="button"
+            class="btn btn-sm btn-outline-secondary"
+            data-action="left-sidebar#toggle">
+      <i class="bi bi-layout-sidebar-inset"></i>
+    </button>
+
     <%= link_to "戻る", new_shift_month_path, class:"btn btn-sm btn-light border" %>
+
     <%= button_to "手修正する", start_edit_from_confirmed_shift_month_path(@shift_month),
               method: :post,
               class: "btn btn-sm btn-primary" %>
+
     <%= link_to "Excel出力",
             export_excel_shift_month_path(@shift_month),
             class: "btn btn-sm btn-success" %>
