@@ -369,11 +369,12 @@ module ShiftDrafts
       pick_by_priority(candidate_ids, date: date, priority_mode: priority_mode, kind: kind)
     end
 
-    # 日勤スキルを未選定から追加で埋める。候補をDBから一括取得してshuffleし、Ruby側でpopしていく
+    # 日勤スキルを未選定から追加で埋める。
+    # 先に「看護訪問」「介護訪問」を満たし、その後に運転・調理を満たす。
     def fill_day_skills!(day_rows:, date:, skill_counts:, assigned_today:, holiday_ids:, scope:, slot:)
-      day_staff_ids = day_rows.map { |row| row[:staff_id] }.compact.map(&:to_i)
+      counted_staffs = lambda {
+        day_staff_ids = day_rows.map { |row| row[:staff_id] }.compact.map(&:to_i)
 
-      counted_day_staffs =
         if day_staff_ids.any?
           scope
             .where(id: day_staff_ids)
@@ -382,54 +383,59 @@ module ShiftDrafts
         else
           []
         end
+      }
 
-      drive_have = counted_day_staffs.count { |staff| staff.respond_to?(:can_drive) && staff.can_drive }
-      cook_have  = counted_day_staffs.count { |staff| staff.respond_to?(:can_cook)  && staff.can_cook }
+      actual_skill_counts = lambda {
+        staffs = counted_staffs.call
 
-      need_drive = [skill_counts[:drive].to_i - drive_have, 0].max
-      need_cook  = [skill_counts[:cook].to_i  - cook_have,  0].max
+        {
+          nurse_visit: staffs.count { |staff| staff.can_visit? && staff.occupation&.name.to_s.include?("看護") },
+          care_visit: staffs.count { |staff| staff.can_visit? && staff.occupation&.name.to_s.include?("介護") },
+          drive: staffs.count { |staff| staff.respond_to?(:can_drive) && staff.can_drive },
+          cook: staffs.count { |staff| staff.respond_to?(:can_cook) && staff.can_cook }
+        }
+      }
 
-      base_exclude = assigned_today.to_a + holiday_ids + forced_off_staff_ids_on(date)
+      [
+        [:nurse_visit, :visit, :nurse],
+        [:care_visit, :visit, :care],
+        [:drive, :drive, nil],
+        [:cook, :cook, nil]
+      ].each do |count_key, skill, role|
+        actual = actual_skill_counts.call
+        need = [skill_counts[count_key].to_i - actual[count_key].to_i, 0].max
 
-      drive_ids = day_skill_candidate_ids(date: date, exclude_ids: base_exclude, skill: :drive)
-      while need_drive > 0 && drive_ids.any?
-        sid = drive_ids.pop
+        base_exclude = assigned_today.to_a + holiday_ids + forced_off_staff_ids_on(date)
 
-        add_row_and_track!(
-          rows: day_rows,
-          staff_id: sid,
-          assigned_today: assigned_today,
+        candidate_ids = day_skill_candidate_ids(
           date: date,
-          kind: :day
+          exclude_ids: base_exclude,
+          skill: skill,
+          role: role
         )
 
-        slot += 1
-        need_drive -= 1
-      end
+        while need > 0 && candidate_ids.any?
+          sid = candidate_ids.pop
 
-      base_exclude = assigned_today.to_a + holiday_ids + forced_off_staff_ids_on(date)
+          add_row_and_track!(
+            rows: day_rows,
+            staff_id: sid,
+            assigned_today: assigned_today,
+            date: date,
+            kind: :day
+          )
 
-      cook_ids = day_skill_candidate_ids(date: date, exclude_ids: base_exclude, skill: :cook)
-      while need_cook > 0 && cook_ids.any?
-        sid = cook_ids.pop
-
-        add_row_and_track!(
-          rows: day_rows,
-          staff_id: sid,
-          assigned_today: assigned_today,
-          date: date,
-          kind: :day
-        )
-
-        slot += 1
-        need_cook -= 1
+          slot += 1
+          need -= 1
+        end
       end
 
       slot
     end
 
-    # 日勤スキル候補のstaff.idを一括取得してシャッフルして返す。返り値：[staff_id, staff_id, ...]
-    def day_skill_candidate_ids(date:, exclude_ids:, skill:)
+    # 日勤スキル候補のstaff.idを返す。
+    # visit の場合は role: :nurse / :care で職種も絞る。
+    def day_skill_candidate_ids(date:, exclude_ids:, skill:, role: nil)
       scope = @active_scope.where(can_day: true)
       scope = apply_workday_constraint(scope, date: date)
 
@@ -438,11 +444,24 @@ module ShiftDrafts
         scope = scope.where(can_drive: true)
       when :cook
         scope = scope.where(can_cook: true)
+      when :visit
+        scope = scope.where(can_visit: true)
+
+        scope = scope.joins(:occupation)
+        case role&.to_sym
+        when :nurse
+          scope = scope.where("occupations.name LIKE ?", "%看護%")
+        when :care
+          scope = scope.where("occupations.name LIKE ?", "%介護%")
+        else
+          return []
+        end
       else
         return []
       end
 
       scope = scope.where.not(id: exclude_ids) if exclude_ids.any?
+
       ids = scope.pluck(:id)
       ids = filter_ids_by_weekly_cap(ids, date)
       sort_ids_by_priority(ids, date: date)
@@ -451,7 +470,12 @@ module ShiftDrafts
     def fill_day_roles!(day_rows:, date:, need_nurse:, need_care:, assigned_today:, holiday_ids:, slot:)
       base_exclude = assigned_today.to_a + holiday_ids + forced_off_staff_ids_on(date)
 
-      nurse_ids = day_role_candidate_ids(date: date, exclude_ids: base_exclude, role: :nurse)
+      nurse_ids = day_role_candidate_ids(
+        date: date,
+        exclude_ids: base_exclude,
+        role: :nurse,
+        prefer_without_visit: true
+      )
       while need_nurse > 0 && nurse_ids.any?
         sid = nurse_ids.pop
 
@@ -469,7 +493,12 @@ module ShiftDrafts
       
       base_exclude = assigned_today.to_a + holiday_ids + forced_off_staff_ids_on(date)
 
-      care_ids = day_role_candidate_ids(date: date, exclude_ids: base_exclude, role: :care)
+      care_ids = day_role_candidate_ids(
+        date: date,
+        exclude_ids: base_exclude,
+        role: :care,
+        prefer_without_visit: true
+      )
       while need_care > 0 && care_ids.any?
         sid = care_ids.pop
 
@@ -488,12 +517,12 @@ module ShiftDrafts
       slot
     end
 
-    def day_role_candidate_ids(date:, exclude_ids:, role:)
+    def day_role_candidate_ids(date:, exclude_ids:, role:, prefer_without_visit: false)
       scope = @active_scope.where(can_day: true)
       scope = apply_workday_constraint(scope, date: date)
 
-      # 職種で絞る
       scope = scope.joins(:occupation)
+
       case role
       when :nurse
         scope = scope.where("occupations.name LIKE ?", "%看護%")
@@ -504,9 +533,23 @@ module ShiftDrafts
       end
 
       scope = scope.where.not(id: exclude_ids) if exclude_ids.any?
+
       ids = scope.pluck(:id)
       ids = filter_ids_by_weekly_cap(ids, date)
-      sort_ids_by_priority(ids, date: date)
+      ids = sort_ids_by_priority(ids, date: date)
+
+      if prefer_without_visit
+        without_visit, with_visit =
+          ids.partition do |sid|
+            staff = @staff_by_id[sid.to_i]
+            !staff&.can_visit?
+          end
+
+        # popで末尾から選ぶため、非訪問スキル者を後ろに置く
+        ids = with_visit + without_visit
+      end
+
+      ids
     end
 
     # 日単位で「勤務日数」と「最終勤務日」を作る worked_days_by_staff => { staff_id => 12, ... }, last_worked_by_staff => { staff_id => Date, ... }

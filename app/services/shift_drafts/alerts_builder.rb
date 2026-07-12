@@ -17,6 +17,7 @@ module ShiftDrafts
 
         dkey = date.iso8601
         kinds_hash = @draft[dkey] || {}
+        day_parts = []
 
         # ---- 日勤不足（dayのみで看護/介護を数える）----
         if enabled?(:day, date)
@@ -27,47 +28,49 @@ module ShiftDrafts
           if req_nurse > 0 || req_care > 0
             actual = day_actual_counts(kinds_hash)
             lack_nurse = [req_nurse - actual[:nurse], 0].max
-            lack_care  = [req_care - actual[:care],   0].max
+            lack_care  = [req_care - actual[:care], 0].max
 
-            if lack_nurse > 0 || lack_care > 0
-              parts = []
-              parts << "看#{lack_nurse}不足" if lack_nurse > 0
-              parts << "介#{lack_care}不足"  if lack_care  > 0
-              list << "日勤：#{parts.join(' ')}"
-            end
+            day_parts << "看#{lack_nurse}不足" if lack_nurse > 0
+            day_parts << "介#{lack_care}不足" if lack_care > 0
           end
-        end
 
-        # 日勤スキル不足(dayのみで運転/調理を数える)
-        if enabled?(:day, date)
-          req_skill = @shift_month.required_skill_counts_for(date) || { drive: 0, cook: 0 }
+          req_skill =
+            @shift_month.required_skill_counts_for(date) ||
+            { drive: 0, cook: 0, nurse_visit: 0, care_visit: 0 }
+
           actual_skill = day_actual_skill_counts(kinds_hash)
-          lack_drive = [req_skill[:drive].to_i - actual_skill[:drive], 0].max
-          lack_cook  = [req_skill[:cook].to_i  - actual_skill[:cook],  0].max
 
-          if lack_drive > 0 || lack_cook > 0
-            parts = []
-            parts << "運転#{lack_drive}不足" if lack_drive > 0
-            parts << "調理#{lack_cook}不足"  if lack_cook  > 0
-            list << parts.join(' ')
-          end
+          lack_drive = [req_skill[:drive].to_i - actual_skill[:drive].to_i, 0].max
+          lack_cook  = [req_skill[:cook].to_i - actual_skill[:cook].to_i, 0].max
+
+          lack_nurse_visit =
+            [req_skill[:nurse_visit].to_i - actual_skill[:nurse_visit].to_i, 0].max
+
+          lack_care_visit =
+            [req_skill[:care_visit].to_i - actual_skill[:care_visit].to_i, 0].max
+
+          day_parts << "運#{lack_drive}不足" if lack_drive > 0
+          day_parts << "調#{lack_cook}不足" if lack_cook > 0
+          day_parts << "看(訪)#{lack_nurse_visit}不足" if lack_nurse_visit > 0
+          day_parts << "介(訪)#{lack_care_visit}不足" if lack_care_visit > 0
         end
 
-        # ---- 早番/遅番/夜勤不足（ONなのに1人も入っていない）----
-        list << "早番不足" if enabled?(:early, date) && blank_kind?(kinds_hash, "early")
+        # ---- 早番/遅番不足も日勤系としてまとめる ----
+        day_parts << "早番不足" if enabled?(:early, date) && blank_kind?(kinds_hash, "early")
 
         if enabled?(:late, date)
           required = @shift_month.late_slots_for(date).to_i
           required = 1 if required <= 0
           required = 2 if required >= 2
 
-          late_rows = (kinds_hash["late"] || kinds_hash[:late])
+          late_rows = kinds_hash["late"] || kinds_hash[:late]
           actual = Array(late_rows).size
           lack = [required - actual, 0].max
 
-          list << "遅番:#{lack}不足" if lack > 0
+          day_parts << "遅番#{lack}不足" if lack > 0
         end
 
+        list << "日勤：#{day_parts.join(' ')}" if day_parts.any?
         list << "夜勤不足" if enabled?(:night, date) && blank_kind?(kinds_hash, "night")
 
         alerts[date] = list
@@ -289,9 +292,13 @@ module ShiftDrafts
 
     def day_actual_skill_counts(kinds_hash)
       drive = 0
-      cook  = 0
+      cook = 0
+      nurse_visit = 0
+      care_visit = 0
 
-      Array(kinds_hash["day"]).each do |row|
+      rows = kinds_hash["day"] || kinds_hash[:day]
+
+      Array(rows).each do |row|
         sid = extract_staff_id(row)
         next if sid.nil?
 
@@ -299,11 +306,23 @@ module ShiftDrafts
         next if staff.nil?
         next unless staff.counts_toward_requirements?
 
+        occ_name = staff.occupation&.name.to_s
+
         drive += 1 if staff.respond_to?(:can_drive) && staff.can_drive
-        cook  += 1 if staff.respond_to?(:can_cook)  && staff.can_cook
+        cook += 1 if staff.respond_to?(:can_cook) && staff.can_cook
+
+        if staff.respond_to?(:can_visit) && staff.can_visit
+          nurse_visit += 1 if occ_name.include?("看護")
+          care_visit += 1 if occ_name.include?("介護")
+        end
       end
 
-      { drive: drive, cook: cook }
+      {
+        drive: drive,
+        cook: cook,
+        nurse_visit: nurse_visit,
+        care_visit: care_visit
+      }
     end
 
     def extract_staff_id(row)

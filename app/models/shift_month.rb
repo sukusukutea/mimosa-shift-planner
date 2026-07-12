@@ -96,11 +96,25 @@ class ShiftMonth < ApplicationRecord
 
   def skill_requirements_index
     @skill_requirements_index ||= begin
-      rows = shift_month_skill_requirements.select(:day_of_week, :skill, :required_number)
+      rows = shift_month_skill_requirements.select(:day_of_week, :skill, :role, :required_number)
+
       index = Hash.new { |h, k| h[k] = {} }
+
       rows.each do |r|
-        index[r.day_of_week][r.skill.to_sym] = r.required_number
+        wday = r.day_of_week
+        skill = r.skill.to_sym
+        role = r.role.to_sym
+
+        key =
+          if skill == :visit && %i[nurse care].include?(role)
+            "#{role}_visit".to_sym
+          else
+            skill
+          end
+
+        index[wday][key] = r.required_number
       end
+
       index
     end
   end
@@ -157,13 +171,15 @@ class ShiftMonth < ApplicationRecord
 
   def copy_skill_requirements_from_base!(user:)
     BaseSkillRequirement.transaction do
-      base_rows = user.base_skill_requirements.select(:day_of_week, :skill, :required_number)
+      base_rows = user.base_skill_requirements.select(:day_of_week, :skill, :role, :required_number)
 
       base_rows.each do |base|
         rec = shift_month_skill_requirements.find_or_initialize_by(
           day_of_week: base.day_of_week,
-          skill: base.skill
+          skill: base.skill,
+          role: base.role
         )
+
         rec.required_number = base.required_number
         rec.save!
       end
@@ -187,13 +203,25 @@ class ShiftMonth < ApplicationRecord
 
   def day_skill_requirements_index
     @day_skill_requirements_index ||= begin
-      rows = shift_day_skill_requirements.select(:date, :shift_kind, :skill, :required_number)
+      rows = shift_day_skill_requirements.select(:date, :shift_kind, :skill, :role, :required_number)
 
       index = Hash.new { |h, k| h[k] = {} }
+
       rows.each do |row|
         key = [row.date, row.shift_kind.to_sym]
-        index[key][row.skill.to_sym] = row.required_number
+        skill = row.skill.to_sym
+        role = row.role.to_sym
+
+        skill_key =
+          if skill == :visit && %i[nurse care].include?(role)
+            "#{role}_visit".to_sym
+          else
+            skill
+          end
+
+        index[key][skill_key] = row.required_number
       end
+
       index
     end
   end
@@ -202,23 +230,36 @@ class ShiftMonth < ApplicationRecord
     remove_instance_variable(:@day_skill_requirements_index) if instance_variable_defined?(:@day_skill_requirements_index)
   end
 
-  def required_skill_counts_for(date) # 返り値例： { drive: 2, cook: 1 }
-    return { drive: 0, cook: 0 } if date.nil?
+  def required_skill_counts_for(date)
+    empty = {
+      drive: 0,
+      cook: 0,
+      nurse_visit: 0,
+      care_visit: 0
+    }
+
+    return empty if date.nil?
 
     day_skills = day_skill_requirements_index[[date, :day]]
     if day_skills.present?
       return {
         drive: day_skills[:drive].to_i,
-        cook:  day_skills[:cook].to_i
+        cook: day_skills[:cook].to_i,
+        nurse_visit: day_skills[:nurse_visit].to_i,
+        care_visit: day_skills[:care_visit].to_i
       }
     end
 
     w = self.class.ui_wday(date)
-    return { drive: 0, cook: 0 } if w.nil?
+    return empty if w.nil?
+
     skills = skill_requirements_index[w] || {}
+
     {
       drive: skills[:drive].to_i,
-      cook:  skills[:cook].to_i
+      cook: skills[:cook].to_i,
+      nurse_visit: skills[:nurse_visit].to_i,
+      care_visit: skills[:care_visit].to_i
     }
   end
 

@@ -215,35 +215,57 @@
               style="<%= day_enabled ? "" : "display:none;" %>">
 
             <div class="d-flex flex-column gap-1" style="white-space: nowrap;">
-              <div class="d-flex align-items-center flex-nowrap gap-1">
-                <span class="text-muted" style="font-size: 12px; line-height: 1;">看護</span>
-                <%= number_field_tag "day_requirements[roles][nurse]",
+              <div class="d-flex align-items-center flex-nowrap gap-1 rounded px-2 py-1"
+                style="background-color:#eef7ff;">
+              <span class="fw-semibold text-muted" style="font-size: 12px; line-height: 1;">看護</span>
+
+              <%= number_field_tag "day_requirements[roles][nurse]",
                                     @day_req[:nurse],
                                     min: 0,
                                     class: "form-control form-control-sm text-center py-0 px-1",
-                                    style: "width:44px; height:25px; min-height:25px; padding-top:0; padding-bottom:0; line-height:1; font-size:13px; box-sizing:border-box;" %>
+                                    style: "width:40px; height:25px; min-height:25px; padding-top:0; padding-bottom:0; line-height:1; font-size:13px; box-sizing:border-box;" %>
 
-                <span class="text-muted ms-1" style="font-size: 12px; line-height: 1;">介護</span>
-                <%= number_field_tag "day_requirements[roles][care]",
+              <span class="text-muted ms-1" style="font-size: 11px; line-height: 1;">訪問</span>
+              <%= number_field_tag "day_requirements[skills][nurse_visit]",
+                                    @day_skill_req[:nurse_visit],
+                                    min: 0,
+                                    class: "form-control form-control-sm text-center py-0 px-1",
+                                    style: "width:40px; height:25px; min-height:25px; padding-top:0; padding-bottom:0; line-height:1; font-size:13px; box-sizing:border-box;" %>
+            </div>
+
+            <div class="d-flex align-items-center flex-nowrap gap-1 rounded px-2 py-1"
+                style="background-color:#fff7e8;">
+              <span class="fw-semibold text-muted" style="font-size: 12px; line-height: 1;">介護</span>
+
+              <%= number_field_tag "day_requirements[roles][care]",
                                     @day_req[:care],
                                     min: 0,
                                     class: "form-control form-control-sm text-center py-0 px-1",
-                                    style: "width:44px; height:25px; min-height:25px; padding-top:0; padding-bottom:0; line-height:1; font-size:13px; box-sizing:border-box;" %>
-              </div>
-              <div class="d-flex align-items-center flex-nowrap gap-1">
-                <span class="text-muted" style="font-size: 12px; line-height: 1;">運転</span>
+                                    style: "width:40px; height:25px; min-height:25px; padding-top:0; padding-bottom:0; line-height:1; font-size:13px; box-sizing:border-box;" %>
+
+              <span class="text-muted ms-1" style="font-size: 11px; line-height: 1;">訪問</span>
+              <%= number_field_tag "day_requirements[skills][care_visit]",
+                                    @day_skill_req[:care_visit],
+                                    min: 0,
+                                    class: "form-control form-control-sm text-center py-0 px-1",
+                                    style: "width:40px; height:25px; min-height:25px; padding-top:0; padding-bottom:0; line-height:1; font-size:13px; box-sizing:border-box;" %>
+            </div>
+
+            <div class="d-flex align-items-center flex-nowrap gap-1 rounded px-2 py-1"
+                style="background-color:#eefaf7;">
+                <span class="fw-semibold text-muted" style="font-size: 12px; line-height: 1;">運転</span>
                 <%= number_field_tag "day_requirements[skills][drive]",
                                       @day_skill_req[:drive],
                                       min: 0,
                                       class: "form-control form-control-sm text-center py-0 px-1",
-                                      style: "width:44px; height:25px; min-height:25px; padding-top:0; padding-bottom:0; line-height:1; font-size:13px; box-sizing:border-box;" %>
+                                      style: "width:40px; height:25px; min-height:25px; padding-top:0; padding-bottom:0; line-height:1; font-size:13px; box-sizing:border-box;" %>
 
-                <span class="text-muted ms-1" style="font-size: 12px; line-height: 1;">調理</span>
+                <span class="fw-semibold text-muted" style="font-size: 12px; line-height: 1;">調理</span>
                 <%= number_field_tag "day_requirements[skills][cook]",
                                       @day_skill_req[:cook],
                                       min: 0,
                                       class: "form-control form-control-sm text-center py-0 px-1",
-                                      style: "width:44px; height:25px; min-height:25px; padding-top:0; padding-bottom:0; line-height:1; font-size:13px; box-sizing:border-box;" %>
+                                      style: "width:40px; height:25px; min-height:25px; padding-top:0; padding-bottom:0; line-height:1; font-size:13px; box-sizing:border-box;" %>
               </div>
             </div>
           </div>

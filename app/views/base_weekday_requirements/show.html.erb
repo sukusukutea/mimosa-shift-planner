@@ -14,20 +14,22 @@
                       class: "btn btn-outline-secondary btn-sm py-1 px-2" %>
         </div>
 
-        <table class="table table-sm table-bordered text-center align-middle mx-auto" style="max-width: 300px;">
+        <table class="table table-sm table-bordered text-center align-middle mx-auto" style="max-width: 420px;">
           <thead>
             <tr class="text-center">
               <th rowspan="2" class="small py-1 lh-1" style="background-color:#e6f0f0;">曜日</th>
-              <th colspan="4" class="small py-1 lh-1" style="background-color:#7fd9d2;">日勤</th>
+              <th colspan="6" class="small py-1 lh-1" style="background-color:#7fd9d2;">日勤</th>
               <th rowspan="2" colspan="1" class="small py-1 lh-1" style="background-color: #e6f0f0;">早番</th>
               <th rowspan="2" colspan="1" class="small py-1 lh-1" style="background-color: #e6f0f0;">遅番</th>
               <th rowspan="2" colspan="1" class="small py-1 lh-1" style="background-color: #e6f0f0;">夜勤</th>
             </tr>
             <tr class="text-center">
-              <th class="small py-1 lh-1" style="background-color: #7fd9d2;">看護</th>
-              <th class="small py-1 lh-1" style="background-color: #7fd9d2;">介護</th>
-              <th class="small py-1 lh-1" style="background-color: #7fd9d2;">運転</th>
-              <th class="small py-1 lh-1" style="background-color: #7fd9d2;">調理</th>
+              <th class="small py-1 lh-1" style="background-color:#d8ecff;">看護</th>
+              <th class="small py-1 lh-1" style="background-color:#d8ecff;">訪問</th>
+              <th class="small py-1 lh-1" style="background-color:#fff0d6;">介護</th>
+              <th class="small py-1 lh-1" style="background-color:#fff0d6;">訪問</th>
+              <th class="small py-1 lh-1" style="background-color:#d8f5f2;">運転</th>
+              <th class="small py-1 lh-1" style="background-color:#d8f5f2;">調理</th>
             </tr>
           </thead>
 
@@ -37,7 +39,9 @@
               <tr>
                 <td><%= wdays[i] %></td>
                 <td><%= @rows[i]["nurse"] %></td>
+                <td><%= @rows[i]["nurse_visit"] %></td>
                 <td><%= @rows[i]["care"] %></td>
+                <td><%= @rows[i]["care_visit"] %></td>
                 <td><%= @rows[i]["drive"] %></td>
                 <td><%= @rows[i]["cook"] %></td>
                 <td><%= @rows[i]["early"] > 0 ? "○" : "-" %></td>
@@ -48,10 +52,10 @@
           </tbody>
         </table>
 
-        <p class="text-muted small mt-2">
-          ※ この設定は「新しく作成するシフト月」の初期値として使用されます。
+        <p class="text-muted small mt-2 mb-0">
+          ※ この設定は「新しく作成するシフト月」の初期値として使用されます。<br>
+          ※「訪問」は、看護・介護の必要人数のうち、訪問スキルを持つ職員を何人含めるかを設定します。
         </p>
-
       </div>
     </div>
   </div>
