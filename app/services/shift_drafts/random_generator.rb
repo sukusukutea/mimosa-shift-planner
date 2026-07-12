@@ -375,14 +375,10 @@ module ShiftDrafts
       counted_staffs = lambda {
         day_staff_ids = day_rows.map { |row| row[:staff_id] }.compact.map(&:to_i)
 
-        if day_staff_ids.any?
-          scope
-            .where(id: day_staff_ids)
-            .includes(:occupation)
-            .reject { |staff| !staff.counts_toward_requirements? }
-        else
-          []
-        end
+        day_staff_ids
+          .map { |sid| @staff_by_id[sid.to_i] }
+          .compact
+          .select { |staff| staff.counts_toward_requirements? }
       }
 
       actual_skill_counts = lambda {
