@@ -23,4 +23,3 @@ FactoryBot.define do
     weekly_workdays { nil }
   end
 end
-

@@ -5,13 +5,13 @@ class AddDraftFieldsToShiftDayAssignments < ActiveRecord::Migration[8.1]
 
     remove_index :shift_day_assignments, name: "index_shift_day_assignments_unique_per_day_and_kind"
     add_index :shift_day_assignments,
-              [:shift_month_id, :date, :shift_kind],
+              [ :shift_month_id, :date, :shift_kind ],
               unique: true,
               where: "source = 1",
               name: "idx_sda_confirmed_unique"
 
     add_index :shift_day_assignments,
-              [:shift_month_id, :draft_token, :date, :shift_kind],
+              [ :shift_month_id, :draft_token, :date, :shift_kind ],
               unique: true,
               where: "source = 0",
               name: "idx_sda_draft_unique"

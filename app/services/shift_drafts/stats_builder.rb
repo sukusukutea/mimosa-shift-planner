@@ -43,7 +43,7 @@ module ShiftDrafts
             sid = staff_id.to_i
             counts[sid][kind] += 1
 
-            if [:day, :early, :late].include?(kind)
+            if [ :day, :early, :late ].include?(kind)
               dayish_by_staff_and_date[sid][date] = true
             end
           end
@@ -91,7 +91,7 @@ module ShiftDrafts
 
       staff_ids.sort_by { |sid|
         s = @staff_by_id[sid]
-        [s.last_name_kana, s.first_name_kana]
+        [ s.last_name_kana, s.first_name_kana ]
       }
       .map { |sid|
         staff = @staff_by_id[sid]
@@ -192,7 +192,7 @@ module ShiftDrafts
           paid_leave_count += @first_week_paid_leave_counts_by_staff_id[sid].to_i
         end
 
-        required_workdays = [limit - paid_leave_count, 0].max
+        required_workdays = [ limit - paid_leave_count, 0 ].max
 
         shortage << (idx + 1) if actual < required_workdays
       end
@@ -201,4 +201,3 @@ module ShiftDrafts
     end
   end
 end
-      

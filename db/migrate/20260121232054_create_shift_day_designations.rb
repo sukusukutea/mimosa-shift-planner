@@ -9,7 +9,7 @@ class CreateShiftDayDesignations < ActiveRecord::Migration[8.1]
     end
 
     add_index :shift_day_designations,
-              [:shift_month_id, :date, :shift_kind],
+              [ :shift_month_id, :date, :shift_kind ],
               unique: true,
               name: "idx_sdd_unique_per_month_date_kind"
   end

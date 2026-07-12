@@ -9,7 +9,7 @@ class ShiftMonthTimeOption < ApplicationRecord
   validates :shift_kind, presence: true
   validates :time_text, presence: true
   validates :position, presence: true
-  validates :is_default, inclusion: { in: [true, false] }
+  validates :is_default, inclusion: { in: [ true, false ] }
 
   validates :time_text,
             format: {

@@ -8,6 +8,6 @@ class CreateShiftDayStyles < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :shift_day_styles, [:shift_day_setting_id, :shift_kind],  unique: true
+    add_index :shift_day_styles, [ :shift_day_setting_id, :shift_kind ],  unique: true
   end
 end

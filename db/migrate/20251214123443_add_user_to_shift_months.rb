@@ -19,16 +19,16 @@ class AddUserToShiftMonths < ActiveRecord::Migration[8.0]
     change_column_null :shift_months, :user_id, false
 
     # 4) これまでの「organization + year + month」のユニーク制約を外す
-    remove_index :shift_months, column: [:organization_id, :year, :month]
+    remove_index :shift_months, column: [ :organization_id, :year, :month ]
 
     # 5) 新しく「user + year + month」でユニークにする
-    add_index :shift_months, [:user_id, :year, :month], unique: true
+    add_index :shift_months, [ :user_id, :year, :month ], unique: true
   end
 
   def down
     # 逆順で戻せるように
-    remove_index :shift_months, column: [:user_id, :year, :month]
-    add_index :shift_months, [:organization_id, :year, :month], unique: true
+    remove_index :shift_months, column: [ :user_id, :year, :month ]
+    add_index :shift_months, [ :organization_id, :year, :month ], unique: true
 
     remove_reference :shift_months, :user, foreign_key: true
   end

@@ -7,6 +7,6 @@ class CreateStaffUnworkableWdays < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :staff_unworkable_wdays, [:staff_id, :wday], unique: true
+    add_index :staff_unworkable_wdays, [ :staff_id, :wday ], unique: true
   end
 end

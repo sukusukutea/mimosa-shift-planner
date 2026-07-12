@@ -12,7 +12,7 @@ class CreateStaffDayTimeOptions < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :staff_day_time_options, [:staff_id, :active, :position],
+    add_index :staff_day_time_options, [ :staff_id, :active, :position ],
               name: "idx_sdto_staff_active_position"
 
     # デフォルトは職員ごとに1つだけ（DBで担保）

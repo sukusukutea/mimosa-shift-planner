@@ -11,7 +11,7 @@ class BaseWeekdayRequirementsController < ApplicationController
 
   def update
     data = params.require(:weekday_requirements)
-  
+
     BaseWeekdayRequirement.transaction do
       data.each do |dow_str, roles_hash| # dow = day_of_weekの略
         dow = dow_str.to_i

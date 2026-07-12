@@ -27,8 +27,8 @@ module ShiftDrafts
 
           if req_nurse > 0 || req_care > 0
             actual = day_actual_counts(kinds_hash)
-            lack_nurse = [req_nurse - actual[:nurse], 0].max
-            lack_care  = [req_care - actual[:care], 0].max
+            lack_nurse = [ req_nurse - actual[:nurse], 0 ].max
+            lack_care  = [ req_care - actual[:care], 0 ].max
 
             day_parts << "看#{lack_nurse}不足" if lack_nurse > 0
             day_parts << "介#{lack_care}不足" if lack_care > 0
@@ -40,14 +40,14 @@ module ShiftDrafts
 
           actual_skill = day_actual_skill_counts(kinds_hash)
 
-          lack_drive = [req_skill[:drive].to_i - actual_skill[:drive].to_i, 0].max
-          lack_cook  = [req_skill[:cook].to_i - actual_skill[:cook].to_i, 0].max
+          lack_drive = [ req_skill[:drive].to_i - actual_skill[:drive].to_i, 0 ].max
+          lack_cook  = [ req_skill[:cook].to_i - actual_skill[:cook].to_i, 0 ].max
 
           lack_nurse_visit =
-            [req_skill[:nurse_visit].to_i - actual_skill[:nurse_visit].to_i, 0].max
+            [ req_skill[:nurse_visit].to_i - actual_skill[:nurse_visit].to_i, 0 ].max
 
           lack_care_visit =
-            [req_skill[:care_visit].to_i - actual_skill[:care_visit].to_i, 0].max
+            [ req_skill[:care_visit].to_i - actual_skill[:care_visit].to_i, 0 ].max
 
           day_parts << "運#{lack_drive}不足" if lack_drive > 0
           day_parts << "調#{lack_cook}不足" if lack_cook > 0
@@ -65,7 +65,7 @@ module ShiftDrafts
 
           late_rows = kinds_hash["late"] || kinds_hash[:late]
           actual = Array(late_rows).size
-          lack = [required - actual, 0].max
+          lack = [ required - actual, 0 ].max
 
           day_parts << "遅番#{lack}不足" if lack > 0
         end
@@ -121,7 +121,7 @@ module ShiftDrafts
 
             # 5連勤に到達した日に、翌日/翌々日の「２連休が成立しているか」チェック
             if streak == 5
-              [1, 2].each do |offset|
+              [ 1, 2 ].each do |offset|
                 d = @dates[idx + offset]
                 break if d.nil?
 

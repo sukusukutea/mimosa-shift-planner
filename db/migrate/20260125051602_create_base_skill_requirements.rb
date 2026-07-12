@@ -10,7 +10,7 @@ class CreateBaseSkillRequirements < ActiveRecord::Migration[8.1]
     end
 
     add_index :base_skill_requirements,
-              [:user_id, :day_of_week, :skill],
+              [ :user_id, :day_of_week, :skill ],
               unique: true,
               name: :idx_base_skill_requirements_unique
   end

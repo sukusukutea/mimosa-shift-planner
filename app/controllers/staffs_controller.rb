@@ -1,7 +1,7 @@
 class StaffsController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_staff, only: [:edit, :update, :destroy, :leave, :restore]
-  before_action :set_occupations, only: [:new, :create, :edit, :update]
+  before_action :set_staff, only: [ :edit, :update, :destroy, :leave, :restore ]
+  before_action :set_occupations, only: [ :new, :create, :edit, :update ]
 
   def index
     @staffs = current_user.staffs

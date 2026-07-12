@@ -11,7 +11,7 @@ class CreateShiftDaySkillRequirements < ActiveRecord::Migration[8.1]
     end
 
     add_index :shift_day_skill_requirements,
-              [:shift_month_id, :date, :shift_kind, :skill],
+              [ :shift_month_id, :date, :shift_kind, :skill ],
               unique: true,
               name: "idx_unique_day_skill_req"
   end

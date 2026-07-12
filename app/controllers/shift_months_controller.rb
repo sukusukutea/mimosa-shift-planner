@@ -1,13 +1,13 @@
 class ShiftMonthsController < ApplicationController
   before_action :authenticate_user!
   before_action :require_organization!
-  before_action :set_shift_month, only: [:settings, :update_settings, :update_daily,
+  before_action :set_shift_month, only: [ :settings, :update_settings, :update_daily,
                                         :generate_draft, :preview, :edit_draft, :confirm_draft, :show, :bulk_add_staff_holidays,
                                         :remove_staff_holiday, :update_weekday_requirements, :update_designation,
                                         :remove_designation, :update_draft_assignment, :start_edit_from_confirmed,
                                         :export_excel, :sync_weekday_requirements, :add_month_time_option,
-                                        :set_default_month_time_option, :remove_month_time_option]
-  before_action :build_calendar_vars, only: [:settings, :preview, :edit_draft, :show]
+                                        :set_default_month_time_option, :remove_month_time_option ]
+  before_action :build_calendar_vars, only: [ :settings, :preview, :edit_draft, :show ]
 
   def new
     @shift_month = current_user.shift_months.new
@@ -45,7 +45,7 @@ class ShiftMonthsController < ApplicationController
 
     year_string = shift_month_params[:year]
     month_string = shift_month_params[:month]
-  
+
     if year_string.blank?
       @shift_month.errors.add(:year, "を選択してください")
     end
@@ -388,14 +388,14 @@ class ShiftMonthsController < ApplicationController
           record.staff_id = sid
           record.save!
         end
-      end 
+      end
     end
 
     redirect_to settings_shift_month_path(@shift_month, tab: "daily", date: date.iso8601)
   rescue ArgumentError
     redirect_to settings_shift_month_path(@shift_month, tab: "daily"), alert: "日付が不正です"
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to settings_shift_month_path(@shift_month, tab: "daily" , date: params[:date]),
+    redirect_to settings_shift_month_path(@shift_month, tab: "daily", date: params[:date]),
                 alert: "保存に失敗しました: #{e.record.errors.full_messages.join(", ")}"
   end
 
@@ -661,7 +661,7 @@ end
         kinds_hash.each do |kind_sym_or_str, rows|
           kind = kind_sym_or_str.to_sym
           next unless ShiftMonth::SHIFT_KINDS.include?(kind)
-          
+
           Array(rows).each do |row|
             staff_id = row[:staff_id] || row["staff_id"]
             slot = row[:slot] || row["slot"]
@@ -819,7 +819,7 @@ end
           d1 = date
           d2 = date + 1
           d3 = date + 2
-          days = [d1, d2]
+          days = [ d1, d2 ]
           days << d3 if d3 >= month_begin && d3 <= month_end
 
           # affected_days を覚えておく（後でHTML差し替え対象に使う）
@@ -957,7 +957,7 @@ end
 
     stats_html = render_to_string(
       partial: "shift_months/draft_sidebar",
-      formats: [:html],
+      formats: [ :html ],
       locals: { stats_rows: @stats_rows, shift_month: @shift_month }
     )
 
@@ -1011,7 +1011,7 @@ end
 
       alerts_html_by_date[d.iso8601] = render_to_string(
         partial: "shift_months/calendar_cells/alert_body",
-        formats: [:html],
+        formats: [ :html ],
         locals: { msgs: msgs }
       )
     end
@@ -1019,7 +1019,7 @@ end
     # night-slot(当日＋翌日)
     night_slots_html_by_dom_id = {}
     target_row_keys = %i[nurse care]
-    target_dates = [date, date + 1]
+    target_dates = [ date, date + 1 ]
 
     target_row_keys.each do |rk|
       target_dates.each do |d|
@@ -1027,7 +1027,7 @@ end
 
         night_slots_html_by_dom_id[dom_id] = render_to_string(
           partial: "shift_months/calendar_cells/night_slot",
-          formats: [:html],
+          formats: [ :html ],
           locals: {
             date: d,
             in_month: (d >= month_begin && d <= month_end),
@@ -1046,7 +1046,7 @@ end
       if affected_days.present?
         affected_days
       else
-        days = [date, date + 1]
+        days = [ date, date + 1 ]
         days << third_day if third_day
         days
       end
@@ -1062,7 +1062,7 @@ end
 
         day_slots_html_by_dom_id[dom_id] = render_to_string(
           partial: "shift_months/calendar_cells/day_slot_body",
-          formats: [:html],
+          formats: [ :html ],
           locals: {
             date: d,
             in_month: (d >= month_begin && d <= month_end),
@@ -1220,7 +1220,7 @@ end
     token = session[draft_token_session_key]
 
     if require_token && token.blank?
-      return [nil, nil]
+      return [ nil, nil ]
     end
 
     month_begin = Date.new(@shift_month.year, @shift_month.month, 1)
@@ -1229,7 +1229,7 @@ end
     scope = @shift_month.shift_day_assignments.draft.where(date: month_begin..month_end)
     scope = scope.where(draft_token: token) if token.present?
 
-    [scope, token]
+    [ scope, token ]
   end
 
   # draft用：selectを揃えてhash化（preview/edit/update/confirmで共通）
@@ -1249,10 +1249,10 @@ end
 
   def load_draft_for_calendar(require_token: false)
     scope, token = draft_scope_and_token(require_token: require_token)
-    return [nil, nil, nil] if scope.nil?
+    return [ nil, nil, nil ] if scope.nil?
 
     draft_hash = build_draft_hash(scope)
-    [scope, token, draft_hash]
+    [ scope, token, draft_hash ]
   end
 
   # カレンダー用の変数(vars:変数達の略)
@@ -1270,7 +1270,7 @@ end
       { key: :care, label: "介護", row_class: "occ-row-care" },
       { key: :cook, label: "調理", row_class: "occ-row-small" },
       { key: :clerk, label: "事務", row_class: "occ-row-small" },
-      { key: :req, label: "人員設定", row_class: "occ-row-req" },
+      { key: :req, label: "人員設定", row_class: "occ-row-req" }
     ]
 
     enabled_maps = @shift_month.enabled_map_for_range(@dates)
@@ -1324,14 +1324,14 @@ end
   end
 
   def prepare_daily_tab_vars
-    @selected_date = parse_selected_date(params[:date]) || @month_begin #日別調整の「選択日」
+    @selected_date = parse_selected_date(params[:date]) || @month_begin # 日別調整の「選択日」
     @enabled_map = @shift_month.enabled_map_for(@selected_date)
   end
 
   def prepare_holiday_tab_vars
     @all_staffs = current_user.staffs.order(:last_name_kana, :first_name_kana)
 
-    @selected_staff = 
+    @selected_staff =
       if params[:staff_id].present?
         current_user.staffs.find_by(id: params[:staff_id])
       else
@@ -1416,7 +1416,7 @@ end
     hash
   end
 
-  #ShiftDayAssignmentのrelationから、{ "YYYY-MM-DD" => { "day" => [{"slot"=>..,"staff_id"=>..}, ...], ... } } を作る
+  # ShiftDayAssignmentのrelationから、{ "YYYY-MM-DD" => { "day" => [{"slot"=>..,"staff_id"=>..}, ...], ... } } を作る
   def build_assignments_hash(scope)
     h = Hash.new { |hh, dkey| hh[dkey] = Hash.new { |hhh, kind| hhh[kind] = [] } }
 
@@ -1440,7 +1440,7 @@ end
     h
   end
 
-   # preview/edit_draft/show で共通の「集計・アラート・未割当表示」などをまとめてセットする
+  # preview/edit_draft/show で共通の「集計・アラート・未割当表示」などをまとめてセットする
   def prepare_calendar_page(assignments_hash:)
     preload_staffs_for
     @carry_over_state = build_carry_over_state(shift_month: @shift_month)
@@ -1508,25 +1508,25 @@ end
     base_rows =
       current_user.base_weekday_requirements
                   .select(:shift_kind, :day_of_week, :role, :required_number)
-                  .map { |r| [r.shift_kind.to_s, r.day_of_week.to_i, r.role.to_s, r.required_number.to_i] }
+                  .map { |r| [ r.shift_kind.to_s, r.day_of_week.to_i, r.role.to_s, r.required_number.to_i ] }
                   .sort
 
     month_rows =
       shift_month.shift_month_requirements
                 .select(:shift_kind, :day_of_week, :role, :required_number)
-                .map { |r| [r.shift_kind.to_s, r.day_of_week.to_i, r.role.to_s, r.required_number.to_i] }
+                .map { |r| [ r.shift_kind.to_s, r.day_of_week.to_i, r.role.to_s, r.required_number.to_i ] }
                 .sort
 
     base_skill_rows =
       current_user.base_skill_requirements
                   .select(:day_of_week, :skill, :role, :required_number)
-                  .map { |r| [r.day_of_week.to_i, r.skill.to_s, r.role.to_s, r.required_number.to_i] }
+                  .map { |r| [ r.day_of_week.to_i, r.skill.to_s, r.role.to_s, r.required_number.to_i ] }
                   .sort
 
     month_skill_rows =
       shift_month.shift_month_skill_requirements
                 .select(:day_of_week, :skill, :role, :required_number)
-                .map { |r| [r.day_of_week.to_i, r.skill.to_s, r.role.to_s, r.required_number.to_i] }
+                .map { |r| [ r.day_of_week.to_i, r.skill.to_s, r.role.to_s, r.required_number.to_i ] }
                 .sort
 
     base_rows != month_rows || base_skill_rows != month_skill_rows
@@ -1572,7 +1572,7 @@ end
 
     prev_month_begin = Date.new(prev_shift_month.year, prev_shift_month.month, 1)
     prev_month_end = prev_month_begin.end_of_month
-    from_date = [prev_month_end - (days - 1), prev_month_begin].max
+    from_date = [ prev_month_end - (days - 1), prev_month_begin ].max
 
     prev_shift_month.shift_day_assignments
                 .confirmed
@@ -1651,20 +1651,20 @@ end
           streak_before_rest = trailing_dayish_streak_before_trailing_rest(by_date, dates, prev_month_end)
 
           if streak_before_rest >= 5 && trailing_rest_days.positive? && trailing_rest_days < 2
-            remaining_required_rest_days = [remaining_required_rest_days, 2 - trailing_rest_days].max
+            remaining_required_rest_days = [ remaining_required_rest_days, 2 - trailing_rest_days ].max
           end
 
           if trailing_double_night?(by_date, prev_month_end - trailing_rest_days) && trailing_rest_days.positive? && trailing_rest_days < 2
-            remaining_required_rest_days = [remaining_required_rest_days, 2 - trailing_rest_days].max
+            remaining_required_rest_days = [ remaining_required_rest_days, 2 - trailing_rest_days ].max
           end
 
           if trailing_rest_days.zero?
             if work_streak >= 5
-              remaining_required_rest_days = [remaining_required_rest_days, 2].max
+              remaining_required_rest_days = [ remaining_required_rest_days, 2 ].max
             end
 
             if trailing_double_night?(by_date, prev_month_end)
-              remaining_required_rest_days = [remaining_required_rest_days, 2].max
+              remaining_required_rest_days = [ remaining_required_rest_days, 2 ].max
             end
           end
         end
@@ -1672,7 +1672,7 @@ end
 
       first_week_dayish_count =
         first_week_prev_dates.count do |date|
-          Array(by_date[date]).any? { |kind| [:day, :early, :late].include?(kind) }
+          Array(by_date[date]).any? { |kind| [ :day, :early, :late ].include?(kind) }
         end
 
       first_week_paid_leave_count =
@@ -1699,7 +1699,7 @@ end
     full_range.reverse_each do |date|
       kinds = Array(by_date[date])
 
-      if (kinds & [:day, :early, :late]).any?
+      if (kinds & [ :day, :early, :late ]).any?
         streak += 1
       else
         break
@@ -1718,7 +1718,7 @@ end
     full_range.reverse_each do |date|
       kinds = Array(by_date[date])
 
-      if (kinds & [:day, :early, :late, :night]).any?
+      if (kinds & [ :day, :early, :late, :night ]).any?
         break
       else
         rest_days += 1
@@ -1737,7 +1737,7 @@ end
     full_range.reverse_each do |date|
       kinds = Array(by_date[date])
 
-      if (kinds & [:day, :early, :late, :night]).any?
+      if (kinds & [ :day, :early, :late, :night ]).any?
         break
       else
         trailing_rest += 1
@@ -1751,7 +1751,7 @@ end
     (dates.min..work_range_end).to_a.reverse_each do |date|
       kinds = Array(by_date[date])
 
-      if (kinds & [:day, :early, :late]).any?
+      if (kinds & [ :day, :early, :late ]).any?
         streak += 1
       else
         break

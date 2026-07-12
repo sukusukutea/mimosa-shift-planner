@@ -9,5 +9,5 @@ class StaffHolidayRequest < ApplicationRecord
   }
 
   validates :date, presence: true
-  validates :staff_id, uniqueness: { scope: [:shift_month_id, :date] }
+  validates :staff_id, uniqueness: { scope: [ :shift_month_id, :date ] }
 end
