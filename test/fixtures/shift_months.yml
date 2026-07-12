@@ -1,13 +1,16 @@
 # Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
 one:
+  user: one
   organization: one
-  year: 1
-  month: 1
+  year: 2026
+  month: 7
   holiday_days: 1
 
 two:
+  user: one
   organization: two
-  year: 1
-  month: 1
+  year: 2026
+  month: 8
   holiday_days: 1
+  

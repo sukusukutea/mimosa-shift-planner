@@ -1,13 +1,14 @@
 require "test_helper"
 
 class StaffsControllerTest < ActionDispatch::IntegrationTest
-  test "should get index" do
-    get staffs_index_url
-    assert_response :success
+  test "should redirect index when not signed in" do
+    get staffs_url
+    assert_redirected_to new_user_session_url
   end
 
-  test "should get new" do
-    get staffs_new_url
-    assert_response :success
+  test "should redirect new when not signed in" do
+    get new_staff_url
+    assert_redirected_to new_user_session_url
   end
 end
+

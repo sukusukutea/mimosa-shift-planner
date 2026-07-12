@@ -1,13 +1,13 @@
 require "test_helper"
 
 class BaseWeekdayRequirementsControllerTest < ActionDispatch::IntegrationTest
-  test "should get show" do
+  test "should redirect show when not signed in" do
     get base_weekday_requirements_show_url
-    assert_response :success
+    assert_redirected_to new_user_session_url
   end
 
-  test "should get edit" do
+  test "should redirect edit when not signed in" do
     get base_weekday_requirements_edit_url
-    assert_response :success
+    assert_redirected_to new_user_session_url
   end
 end

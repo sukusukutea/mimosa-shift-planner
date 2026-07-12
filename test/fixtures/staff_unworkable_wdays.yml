@@ -1,9 +1,1 @@
-# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
-
-one:
-  staff: one
-  wday: 1
-
-two:
-  staff: two
-  wday: 1
+# staff_workable_wdays fixtures are intentionally empty.
