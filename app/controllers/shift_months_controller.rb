@@ -207,6 +207,23 @@ class ShiftMonthsController < ApplicationController
     roles  = params.dig(:day_requirements, :roles)  || {}
     skills = params.dig(:day_requirements, :skills) || {}
 
+    nurse_num = roles["nurse"].to_i
+    care_num = roles["care"].to_i
+    nurse_visit_num = skills["nurse_visit"].to_i
+    care_visit_num = skills["care_visit"].to_i
+
+    if nurse_visit_num > nurse_num
+      redirect_to settings_shift_month_path(@shift_month, tab: "daily", date: date.iso8601),
+                  alert: "看護訪問は、看護人数以下にしてください"
+      return
+    end
+
+    if care_visit_num > care_num
+      redirect_to settings_shift_month_path(@shift_month, tab: "daily", date: date.iso8601),
+                  alert: "介護訪問は、介護人数以下にしてください"
+      return
+    end
+
     ActiveRecord::Base.transaction do
       setting = @shift_month.shift_day_settings.find_or_create_by!(date: date)
 
@@ -535,6 +552,23 @@ end
     ActiveRecord::Base.transaction do
       data.each do |dow_str, roles_hash| # dow: day_of_weekの略
         dow = dow_str.to_i
+
+        nurse_num = roles_hash["nurse"].to_i
+        care_num = roles_hash["care"].to_i
+        nurse_visit_num = roles_hash["nurse_visit"].to_i
+        care_visit_num = roles_hash["care_visit"].to_i
+
+        if nurse_visit_num > nurse_num
+          redirect_to settings_shift_month_path(@shift_month, tab: "daily"),
+                      alert: "#{%w[月 火 水 木 金 土 日][dow]}曜の看護訪問は、看護人数以下にしてください"
+          return
+        end
+
+        if care_visit_num > care_num
+          redirect_to settings_shift_month_path(@shift_month, tab: "daily"),
+                      alert: "#{%w[月 火 水 木 金 土 日][dow]}曜の介護訪問は、介護人数以下にしてください"
+          return
+        end
 
         %w[nurse care].each do |role|
           num = roles_hash[role].to_i
