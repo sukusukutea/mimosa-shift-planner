@@ -71,7 +71,7 @@ group :test do
   gem "shoulda-matchers"
 end
 
-gem "devise", "~> 4.9"
+gem "devise", "~> 5.0", ">= 5.0.4"
 gem "devise-i18n"
 gem "holiday_jp"
 
