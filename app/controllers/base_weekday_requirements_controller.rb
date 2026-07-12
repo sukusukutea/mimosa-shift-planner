@@ -47,8 +47,26 @@ class BaseWeekdayRequirementsController < ApplicationController
 
           rec = current_user.base_skill_requirements.find_or_initialize_by(
             day_of_week: dow,
-            skill: skill
+            skill: skill,
+            role: :any
           )
+
+          rec.required_number = num
+          rec.save!
+        end
+
+        {
+          "nurse_visit" => :nurse,
+          "care_visit" => :care
+        }.each do |param_key, role|
+          num = roles_hash[param_key].to_i
+
+          rec = current_user.base_skill_requirements.find_or_initialize_by(
+            day_of_week: dow,
+            skill: :visit,
+            role: role
+          )
+
           rec.required_number = num
           rec.save!
         end
@@ -56,7 +74,7 @@ class BaseWeekdayRequirementsController < ApplicationController
     end
 
     redirect_to base_weekday_requirements_path, notice: "保存しました"
-  rescue ApplicationController::ParameterMissing
+  rescue ActionController::ParameterMissing
     redirect_to edit_base_weekday_requirements_path, alert: "入力が見つかりません"
   rescue ActiveRecord::RecordInvalid => e
     redirect_to edit_base_weekday_requirements_path, alert: "保存に失敗しました：#{e.record.errors.full_messages.join(", ")}"
@@ -66,7 +84,17 @@ class BaseWeekdayRequirementsController < ApplicationController
 
   def build_table
     hash = (0..6).index_with {
-      { "nurse" => 0, "care" => 0, "early" => 0, "late" => 0, "night" => 0, "drive" => 0, "cook" => 0 }
+      {
+        "nurse" => 0,
+        "nurse_visit" => 0,
+        "care" => 0,
+        "care_visit" => 0,
+        "early" => 0,
+        "late" => 0,
+        "night" => 0,
+        "drive" => 0,
+        "cook" => 0
+      }
     }
 
     current_user.base_weekday_requirements.each do |r|
@@ -77,12 +105,25 @@ class BaseWeekdayRequirementsController < ApplicationController
         hash[dow][r.role] = r.required_number
       else
         next unless r.role == "any"
+
         hash[dow][kind] = r.required_number
       end
     end
 
     current_user.base_skill_requirements.each do |r|
-      hash[r.day_of_week][r.skill.to_s] = r.required_number
+      dow = r.day_of_week
+      skill = r.skill.to_s
+      role = r.role.to_s
+
+      if skill == "visit"
+        next unless %w[nurse care].include?(role)
+
+        hash[dow]["#{role}_visit"] = r.required_number
+      else
+        next unless role == "any"
+
+        hash[dow][skill] = r.required_number
+      end
     end
 
     hash

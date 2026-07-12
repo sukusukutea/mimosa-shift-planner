@@ -6,32 +6,45 @@
 %>
 
 <% day_on = day_enabled_by_date[date] %>
-
 <% required_skill_by_date = local_assigns[:required_skill_by_date] %>
+
+<% labels = [] %>
+<% labels << "早" if early_enabled_by_date&.[](date) %>
+<% if late_enabled_by_date&.[](date) %>
+  <% late_slots = shift_month.late_slots_for(date).to_i %>
+  <% labels << (late_slots >= 2 ? "遅2" : "遅") %>
+<% end %>
 
 <% if day_on %>
   <% req_roles = required_by_date[date] || { nurse: 0, care: 0 } %>
 
   <% req_skills =
        if required_skill_by_date.is_a?(Hash)
-         (required_skill_by_date[date] || { drive: 0, cook: 0 })
+         (required_skill_by_date[date] || { drive: 0, cook: 0, nurse_visit: 0, care_visit: 0 })
        else
-         (shift_month.required_skill_counts_for(date) || { drive: 0, cook: 0 })
+         (shift_month.required_skill_counts_for(date) || { drive: 0, cook: 0, nurse_visit: 0, care_visit: 0 })
        end %>
 
-  <% labels = [] %>
-  <% labels << "早" if early_enabled_by_date&.[](date) %>
-  <% if late_enabled_by_date&.[](date) %>
-    <% late_slots = shift_month.late_slots_for(date).to_i %>
-    <% labels << (late_slots >= 2 ? "遅2" : "遅") %>
-  <% end %>
+  <% nurse_visit = req_skills[:nurse_visit].to_i %>
+  <% care_visit = req_skills[:care_visit].to_i %>
+  <% nurse_visit_text = nurse_visit.positive? ? "(#{nurse_visit})" : "" %>
+  <% care_visit_text = care_visit.positive? ? "(#{care_visit})" : "" %>
 
   <div class="req-count text-muted">
-    日勤 看<%= req_roles[:nurse] %> 介<%= req_roles[:care] %> 運<%= req_skills[:drive] %> 調<%= req_skills[:cook] %>
+    看護<%= req_roles[:nurse] %><%= nurse_visit_text %>
+    介護<%= req_roles[:care] %><%= care_visit_text %>
+    運<%= req_skills[:drive] %>
+    調<%= req_skills[:cook] %>
     <% if labels.any? %>
-      <span class="ms-2"><%= labels.join("") %></span>
+      <span class="ms-1"><%= labels.join("") %></span>
     <% end %>
   </div>
 <% else %>
-  <div class="req-count text-muted">日勤 -</div>
+  <div class="req-count text-muted">
+    <% if labels.any? %>
+      <%= labels.join("") %>
+    <% else %>
+      -
+    <% end %>
+  </div>
 <% end %>

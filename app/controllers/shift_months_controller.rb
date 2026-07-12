@@ -242,11 +242,31 @@ class ShiftMonthsController < ApplicationController
 
         %w[drive cook].each do |skill|
           num = skills[skill].to_i
+
           rec = @shift_month.shift_day_skill_requirements.find_or_initialize_by(
             date: date,
             shift_kind: :day,
-            skill: skill
+            skill: skill,
+            role: :any
           )
+
+          rec.required_number = num
+          rec.save!
+        end
+
+        {
+          "nurse_visit" => :nurse,
+          "care_visit" => :care
+        }.each do |param_key, role|
+          num = skills[param_key].to_i
+
+          rec = @shift_month.shift_day_skill_requirements.find_or_initialize_by(
+            date: date,
+            shift_kind: :day,
+            skill: :visit,
+            role: role
+          )
+
           rec.required_number = num
           rec.save!
         end
@@ -512,8 +532,8 @@ end
   def update_weekday_requirements
     data = params.require(:weekday_requirements)
 
-    ShiftMonthRequirement.transaction do
-      data.each do |dow_str, roles_hash| # dow:day_of_weekの略, str:string
+    ActiveRecord::Base.transaction do
+      data.each do |dow_str, roles_hash| # dow: day_of_weekの略
         dow = dow_str.to_i
 
         %w[nurse care].each do |role|
@@ -524,6 +544,7 @@ end
             day_of_week: dow,
             role: role
           )
+
           rec.required_number = num
           rec.save!
         end
@@ -536,11 +557,44 @@ end
             day_of_week: dow,
             role: :any
           )
+
+          rec.required_number = num
+          rec.save!
+        end
+
+        %w[drive cook].each do |skill|
+          num = roles_hash[skill].to_i
+
+          rec = @shift_month.shift_month_skill_requirements.find_or_initialize_by(
+            day_of_week: dow,
+            skill: skill,
+            role: :any
+          )
+
+          rec.required_number = num
+          rec.save!
+        end
+
+        {
+          "nurse_visit" => :nurse,
+          "care_visit" => :care
+        }.each do |param_key, role|
+          num = roles_hash[param_key].to_i
+
+          rec = @shift_month.shift_month_skill_requirements.find_or_initialize_by(
+            day_of_week: dow,
+            skill: :visit,
+            role: role
+          )
+
           rec.required_number = num
           rec.save!
         end
       end
     end
+
+    @shift_month.clear_requirements_cache! if @shift_month.respond_to?(:clear_requirements_cache!)
+    @shift_month.clear_skill_requirements_cache! if @shift_month.respond_to?(:clear_skill_requirements_cache!)
 
     redirect_to settings_shift_month_path(@shift_month, tab: "daily"), notice: "曜日別の必要人数を保存しました"
   rescue ActionController::ParameterMissing
@@ -1282,10 +1336,47 @@ end
   end
 
   def build_weekday_requirements_hash
-    hash = (0..6).index_with { { "nurse" => 0, "care" => 0 } } # ここで{ 0 => { "nurse" => 0, "care" => 0 }, ..}をつくる
+    hash = (0..6).index_with do
+      {
+        "nurse" => 0,
+        "nurse_visit" => 0,
+        "care" => 0,
+        "care_visit" => 0,
+        "early" => 0,
+        "late" => 0,
+        "night" => 0,
+        "drive" => 0,
+        "cook" => 0
+      }
+    end
 
-    @shift_month.shift_month_requirements.day.each do |r| # dayはshift_kind: :day　なので使える
-      hash[r.day_of_week][r.role] = r.required_number # hash[曜日][役割] = 必要人数　という構成　例）hash[0]["nurse"] = 2
+    @shift_month.shift_month_requirements.each do |r|
+      dow = r.day_of_week
+      kind = r.shift_kind.to_s
+
+      if kind == "day"
+        hash[dow][r.role] = r.required_number
+      else
+        next unless r.role == "any"
+
+        hash[dow][kind] = r.required_number
+      end
+    end
+
+    @shift_month.shift_month_skill_requirements.each do |r|
+      dow = r.day_of_week
+      skill = r.skill.to_s
+      role = r.role.to_s
+
+      if skill == "visit"
+        next unless %w[nurse care].include?(role)
+
+        hash[dow]["#{role}_visit"] = r.required_number
+      else
+        next unless role == "any"
+
+        hash[dow][skill] = r.required_number
+      end
     end
 
     hash
@@ -1394,14 +1485,14 @@ end
 
     base_skill_rows =
       current_user.base_skill_requirements
-                  .select(:day_of_week, :skill, :required_number)
-                  .map { |r| [r.day_of_week.to_i, r.skill.to_s, r.required_number.to_i] }
+                  .select(:day_of_week, :skill, :role, :required_number)
+                  .map { |r| [r.day_of_week.to_i, r.skill.to_s, r.role.to_s, r.required_number.to_i] }
                   .sort
 
     month_skill_rows =
       shift_month.shift_month_skill_requirements
-                .select(:day_of_week, :skill, :required_number)
-                .map { |r| [r.day_of_week.to_i, r.skill.to_s, r.required_number.to_i] }
+                .select(:day_of_week, :skill, :role, :required_number)
+                .map { |r| [r.day_of_week.to_i, r.skill.to_s, r.role.to_s, r.required_number.to_i] }
                 .sort
 
     base_rows != month_rows || base_skill_rows != month_skill_rows

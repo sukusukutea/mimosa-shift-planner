@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_21_011815) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_11_234110) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -18,10 +18,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_011815) do
     t.datetime "created_at", null: false
     t.integer "day_of_week"
     t.integer "required_number", default: 0, null: false
+    t.integer "role", default: 2, null: false
     t.integer "skill"
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
-    t.index ["user_id", "day_of_week", "skill"], name: "idx_base_skill_requirements_unique", unique: true
+    t.index ["user_id", "day_of_week", "skill", "role"], name: "idx_base_skill_requirements_unique", unique: true
     t.index ["user_id"], name: "index_base_skill_requirements_on_user_id"
   end
 
@@ -108,11 +109,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_011815) do
     t.datetime "created_at", null: false
     t.date "date", null: false
     t.integer "required_number", default: 0, null: false
+    t.integer "role", default: 2, null: false
     t.integer "shift_kind", null: false
     t.bigint "shift_month_id", null: false
     t.integer "skill", null: false
     t.datetime "updated_at", null: false
-    t.index ["shift_month_id", "date", "shift_kind", "skill"], name: "idx_unique_day_skill_req", unique: true
+    t.index ["shift_month_id", "date", "shift_kind", "skill", "role"], name: "idx_shift_day_skill_requirements_unique", unique: true
     t.index ["shift_month_id"], name: "index_shift_day_skill_requirements_on_shift_month_id"
   end
 
@@ -142,10 +144,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_011815) do
     t.datetime "created_at", null: false
     t.integer "day_of_week"
     t.integer "required_number", default: 0, null: false
+    t.integer "role", default: 2, null: false
     t.bigint "shift_month_id", null: false
     t.integer "skill"
     t.datetime "updated_at", null: false
-    t.index ["shift_month_id", "day_of_week", "skill"], name: "idx_shift_month_skill_requirements_unique", unique: true
+    t.index ["shift_month_id", "day_of_week", "skill", "role"], name: "idx_shift_month_skill_requirements_unique", unique: true
     t.index ["shift_month_id"], name: "index_shift_month_skill_requirements_on_shift_month_id"
   end
 
