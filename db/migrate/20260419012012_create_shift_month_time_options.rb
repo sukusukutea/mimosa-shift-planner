@@ -11,11 +11,11 @@ class CreateShiftMonthTimeOptions < ActiveRecord::Migration[8.1]
     end
 
     add_index :shift_month_time_options,
-              [:shift_month_id, :shift_kind, :position],
+              [ :shift_month_id, :shift_kind, :position ],
               name: "idx_shift_month_time_options_on_month_kind_position"
 
     add_index :shift_month_time_options,
-              [:shift_month_id, :shift_kind, :is_default],
+              [ :shift_month_id, :shift_kind, :is_default ],
               name: "idx_shift_month_time_options_on_month_kind_default"
   end
 end

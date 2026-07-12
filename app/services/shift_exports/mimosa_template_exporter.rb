@@ -309,7 +309,7 @@ module ShiftExports
 
       prev_month_begin = Date.new(prev_shift_month.year, prev_shift_month.month, 1)
       prev_month_end = prev_month_begin.end_of_month
-      from_date = [prev_month_end - 6, prev_month_begin].max
+      from_date = [ prev_month_end - 6, prev_month_begin ].max
 
       assignments =
         prev_shift_month.shift_day_assignments
@@ -382,7 +382,7 @@ module ShiftExports
         night_rows: night_rows,
         night_sid: night_sid.to_i,
         night_off_ids: night_off_ids,
-        night_related_ids: ([night_sid.to_i] + night_off_ids).uniq
+        night_related_ids: ([ night_sid.to_i ] + night_off_ids).uniq
       }
     end
 
@@ -568,7 +568,7 @@ module ShiftExports
       day_opts =
         Array(staff.staff_day_time_options)
           .select { |o| o.active? }
-          .sort_by { |o| [o.position.to_i, o.id.to_i] }
+          .sort_by { |o| [ o.position.to_i, o.id.to_i ] }
 
       # show/preview と同じ優先順：
       # 1) 曜日一致(apply_wdaysに含む)
@@ -660,7 +660,7 @@ module ShiftExports
     def build_font_only_style_index(book:, base_style_index:, red_style_index:)
       return nil if base_style_index.nil? || red_style_index.nil?
 
-      key = [base_style_index.to_i, red_style_index.to_i]
+      key = [ base_style_index.to_i, red_style_index.to_i ]
       return @__font_only_cache[key] if @__font_only_cache.key?(key)
 
       stylesheet = book.stylesheet
@@ -688,7 +688,7 @@ module ShiftExports
     def build_fill_only_style_index(book:, base_style_index:, marker_style_index:)
       return nil if base_style_index.nil? || marker_style_index.nil?
 
-      key = [base_style_index.to_i, marker_style_index.to_i]
+      key = [ base_style_index.to_i, marker_style_index.to_i ]
       return @__fill_only_cache[key] if @__fill_only_cache.key?(key)
 
       stylesheet = book.stylesheet

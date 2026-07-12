@@ -61,7 +61,7 @@ RSpec.describe StaffDayTimeOption, type: :model do
         staff: create(:staff),
         time_text: "8:30-17:30",
         active: true,
-        apply_wdays: [7]
+        apply_wdays: [ 7 ]
       )
 
       expect(option).to be_invalid
@@ -73,7 +73,7 @@ RSpec.describe StaffDayTimeOption, type: :model do
         staff: create(:staff),
         time_text: "8:30-17:30",
         active: true,
-        apply_wdays: [0,1,2]
+        apply_wdays: [ 0, 1, 2 ]
       )
 
       expect(option).to be_valid

@@ -95,7 +95,7 @@ RSpec.describe Staff, type: :model do
         position: 1,
         active: true,
         is_default: true,
-        apply_wdays: [0, 1]
+        apply_wdays: [ 0, 1 ]
       )
 
       staff.staff_day_time_options.build(
@@ -103,7 +103,7 @@ RSpec.describe Staff, type: :model do
         position: 2,
         active: true,
         is_default: false,
-        apply_wdays: [1, 2]
+        apply_wdays: [ 1, 2 ]
       )
 
       expect(staff).to be_invalid
@@ -118,7 +118,7 @@ RSpec.describe Staff, type: :model do
         position: 1,
         active: true,
         is_default: true,
-        apply_wdays: [0, 1]
+        apply_wdays: [ 0, 1 ]
       )
 
       staff.staff_day_time_options.build(
@@ -126,7 +126,7 @@ RSpec.describe Staff, type: :model do
         position: 2,
         active: true,
         is_default: false,
-        apply_wdays: [2, 3]
+        apply_wdays: [ 2, 3 ]
       )
 
       expect(staff).to be_valid

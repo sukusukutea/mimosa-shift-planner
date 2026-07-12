@@ -9,7 +9,7 @@ class CreateStaffHolidayRequests < ActiveRecord::Migration[8.1]
     end
 
     add_index :staff_holiday_requests,
-              [:shift_month_id, :staff_id, :date],
+              [ :shift_month_id, :staff_id, :date ],
               unique: true,
               name: "idx_staff_holiday_requests_unique"
   end

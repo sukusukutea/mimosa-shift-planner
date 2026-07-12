@@ -13,13 +13,13 @@ class FixSlotOnShiftDayAssignments < ActiveRecord::Migration[8.1]
     end
 
     add_index :shift_day_assignments,
-              [:shift_month_id, :draft_token, :date, :shift_kind, :slot],
+              [ :shift_month_id, :draft_token, :date, :shift_kind, :slot ],
               unique: true,
               where: "(source = 0)",
               name: "idx_sda_draft_unique"
 
     add_index :shift_day_assignments,
-              [:shift_month_id, :date, :shift_kind, :slot],
+              [ :shift_month_id, :date, :shift_kind, :slot ],
               unique: true,
               where: "(source = 1)",
               name: "idx_sda_confirmed_unique"

@@ -10,7 +10,7 @@ class CreateShiftDayAssignments < ActiveRecord::Migration[8.1]
     end
 
     add_index :shift_day_assignments,
-              [:shift_month_id, :date, :shift_kind],
+              [ :shift_month_id, :date, :shift_kind ],
               unique: true,
               name: "index_shift_day_assignments_unique_per_day_and_kind"
   end

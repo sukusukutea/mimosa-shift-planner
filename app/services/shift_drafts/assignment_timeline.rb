@@ -24,7 +24,7 @@ module ShiftDrafts
       (@dates[0...idx].reverse).each do |d|
         kind = daily[d]
 
-        if [:day, :early, :late].include?(kind)
+        if [ :day, :early, :late ].include?(kind)
           count += 1
         else
           break
@@ -35,7 +35,7 @@ module ShiftDrafts
     end
 
     def forbidden_to_work_on?(staff_id, date, kind)
-      return false unless [:day, :early, :late].include?(kind)
+      return false unless [ :day, :early, :late ].include?(kind)
 
       daily = @timeline[staff_id]
       return false unless daily
@@ -47,7 +47,7 @@ module ShiftDrafts
       consec = 0
       (@dates[0...idx].reverse).each do |d|
         k = daily[d]
-        if [:day, :early, :late].include?(k)
+        if [ :day, :early, :late ].include?(k)
           consec += 1
         else
           break

@@ -2,19 +2,19 @@ Rails.application.routes.draw do
   get "base_weekday_requirements/show"
   get "base_weekday_requirements/edit"
   devise_for :users, controllers: {
-    registrations: 'users/registrations'
+    registrations: "users/registrations"
   }
 
-  root to: 'pages#home'
-  get 'dashboard', to: 'dashboards#index'
-  resources :staffs, only: [:index, :new, :create, :edit, :update, :destroy] do
+  root to: "pages#home"
+  get "dashboard", to: "dashboards#index"
+  resources :staffs, only: [ :index, :new, :create, :edit, :update, :destroy ] do
     member do
       patch :leave
       patch :restore
     end
   end
 
-  resources :shift_months, only: [:new, :create, :destroy, :show] do
+  resources :shift_months, only: [ :new, :create, :destroy, :show ] do
     member do
       get :settings             # /shift_months/:id/settings
       patch :update_settings    # /shift_months/:id/update_settings
@@ -43,5 +43,5 @@ Rails.application.routes.draw do
     end
   end
 
-  resource :base_weekday_requirements, only: [:show, :edit, :update]
+  resource :base_weekday_requirements, only: [ :show, :edit, :update ]
 end

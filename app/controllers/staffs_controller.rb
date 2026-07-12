@@ -1,7 +1,7 @@
 class StaffsController < ApplicationController
   before_action :authenticate_user!
-  before_action :set_staff, only: [:edit, :update, :destroy, :leave, :restore]
-  before_action :set_occupations, only: [:new, :create, :edit, :update]
+  before_action :set_staff, only: [ :edit, :update, :destroy, :leave, :restore ]
+  before_action :set_occupations, only: [ :new, :create, :edit, :update ]
 
   def index
     @staffs = current_user.staffs
@@ -84,15 +84,19 @@ class StaffsController < ApplicationController
   end
 
   def set_occupations
-    order = ["管理者","介護士","看護師","ケアマネ","管理栄養士","事務"]
-    @occupations =
-      Occupation.order(
-        Arel.sql(
-          "CASE occupations.name " +
-            order.each_with_index.map { |name, i| "WHEN '#{name}' THEN #{i}" }.join(" ") +
-            " ELSE 999 END"
-        )
-      )
+    occupation_order_sql = Arel.sql(<<~SQL.squish)
+      CASE occupations.name
+      WHEN '管理者' THEN 0
+      WHEN '介護士' THEN 1
+      WHEN '看護師' THEN 2
+      WHEN 'ケアマネ' THEN 3
+      WHEN '管理栄養士' THEN 4
+      WHEN '事務' THEN 5
+      ELSE 999
+      END
+    SQL
+
+    @occupations = Occupation.order(occupation_order_sql)
   end
 
   def staff_params

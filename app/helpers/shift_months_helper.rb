@@ -15,7 +15,7 @@ module ShiftMonthsHelper
     nil
   end
 
-   # staff_by_id から row_key ごとの「並び済みスタッフ配列」を返す（1リクエスト内でメモ化）
+  # staff_by_id から row_key ごとの「並び済みスタッフ配列」を返す（1リクエスト内でメモ化）
   def sorted_staffs_for_row(staff_by_id:, row_key:)
     @__sorted_staffs_by_row_key ||= begin
       staff_by_id.values
@@ -101,11 +101,11 @@ module ShiftMonthsHelper
       night_sid: night_sid.to_i,
       night_off_sid: night_off_ids.first.to_i,
       night_off_ids: night_off_ids,
-      night_related_ids: ([night_sid.to_i] + night_off_ids).uniq
+      night_related_ids: ([ night_sid.to_i ] + night_off_ids).uniq
     }
   end
 
-    # rows（draft/savedの各kind配列）から staff_id を全部集める
+  # rows（draft/savedの各kind配列）から staff_id を全部集める
   def assigned_staff_ids_from_rows(day_rows:, early_rows:, late_rows:, night_rows:)
     ids = []
     { day: day_rows, early: early_rows, late: late_rows, night: night_rows }.each do |_k, rows|

@@ -25,9 +25,9 @@ class ShiftMonth < ApplicationRecord
     w = self.class.ui_wday(date)
     default = {
       day: true,
-      early: requirements_index[[:early, w]]&.dig(:any).to_i > 0,
-      late:  requirements_index[[:late,  w]]&.dig(:any).to_i > 0,
-      night: requirements_index[[:night, w]]&.dig(:any).to_i > 0,
+      early: requirements_index[[ :early, w ]]&.dig(:any).to_i > 0,
+      late:  requirements_index[[ :late,  w ]]&.dig(:any).to_i > 0,
+      night: requirements_index[[ :night, w ]]&.dig(:any).to_i > 0
     }
 
     # 設定がなければ全部の勤務をONにする（index_withで各勤務にtrueのハッシュつける）
@@ -36,12 +36,12 @@ class ShiftMonth < ApplicationRecord
     # settingがある場合：styleが欠けていても全部ONをベースに上書き
     base = default.dup
     setting.shift_day_styles.each do |style|   # その日に「設定が存在する勤務だけ」１件ずつ取り出す
-      base[style.shift_kind.to_sym] = style.enabled   # style.shift_kindでenumの"day"や"night"などのStringが返る。to_symはSymbolキー（:nightなど）に変換 
+      base[style.shift_kind.to_sym] = style.enabled   # style.shift_kindでenumの"day"や"night"などのStringが返る。to_symはSymbolキー（:nightなど）に変換
     end
     base
   end
 
-  def enabled_map_for_range(dates) #複数日まとめてenabledを取る
+  def enabled_map_for_range(dates) # 複数日まとめてenabledを取る
     dates = Array(dates)
     date_set = dates.to_set
 
@@ -50,7 +50,7 @@ class ShiftMonth < ApplicationRecord
       if %i[early late night].include?(kind)
         result[kind] = dates.index_with do |date|
           w = self.class.ui_wday(date)
-          requirements_index[[kind, w]]&.dig(:any).to_i > 0
+          requirements_index[[ kind, w ]]&.dig(:any).to_i > 0
         end
       else
         result[kind] = dates.index_with(true) # dayは常にtrue
@@ -86,7 +86,7 @@ class ShiftMonth < ApplicationRecord
       index = Hash.new { |h, k| h[k] = {} }
 
       rows.each do |r|
-        key = [r.shift_kind.to_sym, r.day_of_week]
+        key = [ r.shift_kind.to_sym, r.day_of_week ]
         index[key][r.role.to_sym] = r.required_number
       end
 
@@ -125,8 +125,7 @@ class ShiftMonth < ApplicationRecord
 
   # { nurse: 2, care: 1 } などのHashを返す
   def required_counts_for(date, shift_kind: :day)
-
-    roles = day_requirements_index[[date, shift_kind.to_sym]]
+    roles = day_requirements_index[[ date, shift_kind.to_sym ]]
     if roles.present?
       return {
         nurse: roles[:nurse].to_i,
@@ -136,7 +135,7 @@ class ShiftMonth < ApplicationRecord
 
     w = self.class.ui_wday(date)
 
-    roles2 = requirements_index[[shift_kind.to_sym, w]] || {}
+    roles2 = requirements_index[[ shift_kind.to_sym, w ]] || {}
     {
       nurse: roles2[:nurse].to_i,
       care:  roles2[:care].to_i
@@ -166,7 +165,7 @@ class ShiftMonth < ApplicationRecord
       end
     end
 
-    clear_requirements_cache! #requirements_indexを使ってるならキャッシュクリア
+    clear_requirements_cache! # requirements_indexを使ってるならキャッシュクリア
   end
 
   def copy_skill_requirements_from_base!(user:)
@@ -194,7 +193,7 @@ class ShiftMonth < ApplicationRecord
 
       index = Hash.new { |h, k| h[k] = {} }
       rows.each do |row|
-        key = [row.date, row.shift_kind.to_sym]
+        key = [ row.date, row.shift_kind.to_sym ]
         index[key][row.role.to_sym] = row.required_number
       end
       index
@@ -208,7 +207,7 @@ class ShiftMonth < ApplicationRecord
       index = Hash.new { |h, k| h[k] = {} }
 
       rows.each do |row|
-        key = [row.date, row.shift_kind.to_sym]
+        key = [ row.date, row.shift_kind.to_sym ]
         skill = row.skill.to_sym
         role = row.role.to_sym
 
@@ -240,7 +239,7 @@ class ShiftMonth < ApplicationRecord
 
     return empty if date.nil?
 
-    day_skills = day_skill_requirements_index[[date, :day]]
+    day_skills = day_skill_requirements_index[[ date, :day ]]
     if day_skills.present?
       return {
         drive: day_skills[:drive].to_i,

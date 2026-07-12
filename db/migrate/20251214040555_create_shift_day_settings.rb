@@ -7,6 +7,6 @@ class CreateShiftDaySettings < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :shift_day_settings, [:shift_month_id, :date], unique: true
+    add_index :shift_day_settings, [ :shift_month_id, :date ], unique: true
   end
 end

@@ -6,7 +6,7 @@ class CreateStaffWorkableWdays < ActiveRecord::Migration[8.1]
       t.timestamps
     end
     add_index :staff_workable_wdays,
-              [:staff_id, :wday],
+              [ :staff_id, :wday ],
               unique: true
   end
 end
