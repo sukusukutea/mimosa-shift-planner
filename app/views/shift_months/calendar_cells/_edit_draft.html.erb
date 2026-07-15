@@ -1,7 +1,7 @@
 <%# locals:
   date:, in_month:, occupation:, row_key:, shift_month:,
   day_enabled_by_date:, early_enabled_by_date:, late_enabled_by_date:,
-  required_by_date:, required_skill_by_date:, alerts_by_date:,
+  required_by_date:, required_skill_by_date:, alerts_by_date:, overstaffing_by_date:,
   draft:, staff_by_id:, unassigned_display_staffs_by_date:,
   holiday_requests_by_date:, designations_by_date:, carry_over_state:
 %>
@@ -33,8 +33,27 @@
               holiday_requests_by_date: holiday_requests_by_date,
               designations_by_date: designations_by_date
             ) %>
+  <% over_msgs = Array(local_assigns[:overstaffing_by_date]&.[](date)) %>
+
   <div id="alert-cell-<%= date.iso8601 %>">
-    <%= render "shift_months/calendar_cells/alert_body", msgs: msgs %>
+    <% if msgs.any? %>
+      <%= render "shift_months/calendar_cells/alert_body", msgs: msgs %>
+    <% elsif over_msgs.blank? %>
+      <%= render "shift_months/calendar_cells/alert_body", msgs: msgs %>
+    <% end %>
+
+    <% if over_msgs.any? %>
+      <div class="d-flex flex-wrap gap-1 small mt-1">
+        <% over_msgs.each do |msg| %>
+          <span
+            class="badge rounded-pill bg-info-subtle text-info-emphasis border border-info-subtle"
+            style="--bs-badge-padding-x: 0.35em; --bs-badge-padding-y: 0.12em; line-height: 1;"
+          >
+            <%= msg %>
+          </span>
+        <% end %>
+      </div>
+    <% end %>
   </div>
 <% else %>
   <div class="day-slots">

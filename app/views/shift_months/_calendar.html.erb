@@ -2,7 +2,7 @@
   weeks:, shift_month:, occupation_order:, holiday_by_date:,
   day_enabled_by_date:, night_enabled_by_date:, day_effective_by_date:, required_by_date:,
   early_enabled_by_date:, late_enabled_by_date:, required_skill_by_date:,
-  staff_by_id:, draft:, saved:, alerts_by_date:, designations_by_date:, holiday_requests_by_date:,
+  staff_by_id:, draft:, saved:, alerts_by_date:, overstaffing_by_date:, designations_by_date:, holiday_requests_by_date:,
   cell_partial:, unassigned_display_staffs_by_date:, carry_over_state:
 %>
 <%# extra_locals: セル側に追加で渡したいlocals（Hash） %>
@@ -15,6 +15,7 @@
 <% draft                            = local_assigns.fetch(:draft, nil) %>
 <% saved                            = local_assigns.fetch(:saved, nil) %>
 <% alerts_by_date                   = local_assigns.fetch(:alerts_by_date, nil) %>
+<% overstaffing_by_date             = local_assigns.fetch(:overstaffing_by_date, {}) || {} %>
 <% designations_by_date             = local_assigns.fetch(:designations_by_date, {}) || {} %>
 <% holiday_requests_by_date         = local_assigns.fetch(:holiday_requests_by_date, nil) %>
 <% unassigned_display_staffs_by_date = local_assigns.fetch(:unassigned_display_staffs_by_date, nil) %>
@@ -106,6 +107,7 @@
                             draft: cell_draft,
                             saved: cell_saved,
                             alerts_by_date: alerts_by_date,
+                            overstaffing_by_date: overstaffing_by_date,
                             designations_by_date: designations_by_date,
                             holiday_requests_by_date: holiday_requests_by_date,
                             unassigned_display_staffs_by_date: cell_unassigned_display_staffs_by_date,
