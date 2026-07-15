@@ -1,0 +1,14 @@
+<% over_msgs = Array(over_msgs) %>
+
+<% if over_msgs.any? %>
+  <div class="d-flex flex-wrap gap-1 small mt-1">
+    <% over_msgs.each do |msg| %>
+      <span
+        class="badge rounded-pill bg-info-subtle text-info-emphasis border border-info-subtle"
+        style="--bs-badge-padding-x: 0.35em; --bs-badge-padding-y: 0.12em; line-height: 1;"
+        >
+        <%= msg %>
+      </span>
+    <% end %>
+  </div>
+<% end %>

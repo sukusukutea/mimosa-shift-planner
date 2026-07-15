@@ -2,7 +2,7 @@
   date:, in_month:, occupation:, row_key:, shift_month:,
   day_enabled_by_date:, early_enabled_by_date:, late_enabled_by_date:,
   required_by_date:, required_skill_by_date:, saved:, staff_by_id:,
-  alerts_by_date:, unassigned_display_staffs_by_date:, holiday_requests_by_date:,
+  alerts_by_date:, overstaffing_by_date:, unassigned_display_staffs_by_date:, holiday_requests_by_date:,
   designations_by_date:, carry_over_state:
 %>
 
@@ -38,13 +38,30 @@
               designations_by_date: designations_by_date
             ) %>
 
-  <% if msgs.any? %>
-    <div class="d-flex flex-wrap gap-1 small">
-      <% msgs.each do |msg| %>
-        <% badge_class = alert_badge_class(msg) %>
-        <span class="badge rounded-pill <%= badge_class %>"><%= msg %></span>
-      <% end %>
-    </div>
+  <% over_msgs = Array(local_assigns[:overstaffing_by_date]&.[](date)) %>
+
+  <% if msgs.any? || over_msgs.any? %>
+    <% if msgs.any? %>
+      <div class="d-flex flex-wrap gap-1 small">
+        <% msgs.each do |msg| %>
+          <% badge_class = alert_badge_class(msg) %>
+          <span class="badge rounded-pill <%= badge_class %>"><%= msg %></span>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if over_msgs.any? %>
+      <div class="d-flex flex-wrap gap-1 small mt-1">
+        <% over_msgs.each do |msg| %>
+          <span
+            class="badge rounded-pill bg-info-subtle text-info-emphasis border border-info-subtle"
+            style="--bs-badge-padding-x: 0.35em; --bs-badge-padding-y: 0.12em; line-height: 1;"
+          >
+            <%= msg %>
+          </span>
+        <% end %>
+      </div>
+    <% end %>
   <% else %>
     <div class="text-muted small">-</div>
   <% end %>

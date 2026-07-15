@@ -981,6 +981,20 @@ end
       shift_month: @shift_month
     ).call
 
+    overstaffing_by_date = ShiftDrafts::OverstaffingBuilder.new(
+      dates: dates,
+      draft: @draft,
+      staff_by_id: @staff_by_id,
+      required_by_date: required_by_date,
+      enabled_by_date: {
+        day: enabled_maps[:day],
+        early: enabled_maps[:early],
+        late: enabled_maps[:late],
+        night: enabled_maps[:night]
+      },
+      shift_month: @shift_month
+    ).call
+
     holiday_requests_by_date =
       @shift_month.staff_holiday_requests
                   .includes(:staff)
@@ -1008,12 +1022,27 @@ end
         holiday_requests_by_date: holiday_requests_by_date,
         designations_by_date: designations_by_date
       )
+      over_msgs = Array(overstaffing_by_date[d])
 
-      alerts_html_by_date[d.iso8601] = render_to_string(
-        partial: "shift_months/calendar_cells/alert_body",
-        formats: [ :html ],
-        locals: { msgs: msgs }
-      )
+      html_parts = []
+
+      if msgs.any? || over_msgs.blank?
+        html_parts << render_to_string(
+          partial: "shift_months/calendar_cells/alert_body",
+          formats: [ :html ],
+          locals: { msgs: msgs }
+        )
+      end
+
+      if over_msgs.any?
+        html_parts << render_to_string(
+          partial: "shift_months/calendar_cells/overstaffing_body",
+          formats: [ :html ],
+          locals: { over_msgs: over_msgs }
+        )
+      end
+
+      alerts_html_by_date[d.iso8601] = html_parts.join
     end
 
     # night-slot(当日＋翌日)
@@ -1476,6 +1505,20 @@ end
 
     alert_dates = (@month_begin..@month_end).to_a
     @alerts_by_date = ShiftDrafts::AlertsBuilder.new(
+      dates: alert_dates,
+      draft: assignments_hash,
+      staff_by_id: @staff_by_id,
+      required_by_date: @required_by_date,
+      enabled_by_date: {
+        day: @day_enabled_by_date,
+        early: @early_enabled_by_date,
+        late: @late_enabled_by_date,
+        night: @night_enabled_by_date
+      },
+      shift_month: @shift_month
+    ).call
+
+    @overstaffing_by_date = ShiftDrafts::OverstaffingBuilder.new(
       dates: alert_dates,
       draft: assignments_hash,
       staff_by_id: @staff_by_id,
