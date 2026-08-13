@@ -199,6 +199,8 @@ module ShiftExports
         end
       end
 
+      apply_print_settings!(book, sheet)
+
       book.stream.read
     end
 
@@ -709,6 +711,63 @@ module ShiftExports
       idx = stylesheet.cell_xfs.size - 1
 
       @__fill_only_cache[key] = idx
+    end
+
+    def apply_print_settings!(book, sheet)
+      sheet.page_setup ||= RubyXL::PageSetup.new
+      sheet.page_margins ||= RubyXL::PageMargins.new
+
+      # A3縦
+      sheet.page_setup.paper_size = 8
+      sheet.page_setup.orientation = "portrait"
+
+      # A1:X256 を A3縦 1ページに収める
+      sheet.page_setup.fit_to_width = 1
+      sheet.page_setup.fit_to_height = 1
+
+      # 固定倍率が残っていると fit_to_width / fit_to_height と競合しやすいため外す
+      sheet.page_setup.scale = nil if sheet.page_setup.respond_to?(:scale=)
+
+      # Excel側で「次のページ数に合わせて印刷」を有効にする
+      sheet.sheet_pr ||= RubyXL::WorksheetProperties.new
+      sheet.sheet_pr.page_set_up_pr ||= RubyXL::PageSetupProperties.new
+      sheet.sheet_pr.page_set_up_pr.fit_to_page = true
+
+      # 印刷範囲を A1:X256 に固定する
+      set_print_area!(book, sheet, "$A$1:$X$256")
+
+      # 余白。単位はインチ。
+      sheet.page_margins.left = 0.15
+      sheet.page_margins.right = 0.15
+      sheet.page_margins.top = 0.2
+      sheet.page_margins.bottom = 0.2
+      sheet.page_margins.header = 0.1
+      sheet.page_margins.footer = 0.1
+    end
+
+    def set_print_area!(book, sheet, range)
+      book.defined_names ||= RubyXL::DefinedNames.new
+
+      sheet_index = book.worksheets.index(sheet) || 0
+      sheet_name = sheet.sheet_name.to_s.gsub("'", "''")
+      reference = "'#{sheet_name}'!#{range}"
+
+      defined_name = book.defined_names.find do |name|
+        next false unless name.name == "_xlnm.Print_Area"
+        next false if name.local_sheet_id.nil?
+
+        name.local_sheet_id.to_i == sheet_index
+      end
+
+      if defined_name
+        defined_name.reference = reference
+      else
+        book.defined_names << RubyXL::DefinedName.new(
+          name: "_xlnm.Print_Area",
+          local_sheet_id: sheet_index.to_s,
+          reference: reference
+        )
+      end
     end
   end
 end
