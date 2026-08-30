@@ -145,6 +145,76 @@
   border-top: 1px solid #e5e5e5;
 }
 
+/* =========================================
+   利用者予定行
+========================================= */
+
+.client-schedule-row th,
+.client-schedule-row td {
+  height: 46px;
+}
+
+.client-schedule-cell {
+  background: #fff;
+  padding: 0;
+}
+
+.client-schedule-slots {
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr 1fr;
+  height: 100%;
+}
+
+.client-schedule-slot {
+  border-left: 1px solid #e5e5e5;
+  padding: 2px 3px;
+  min-width: 0;
+}
+
+.client-schedule-slot:first-child {
+  border-left: none;
+}
+
+.client-schedule-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: #6c757d;
+  line-height: 1.1;
+  margin-bottom: 2px;
+}
+
+.client-schedule-empty {
+  font-size: 10px;
+  color: #adb5bd;
+  line-height: 1.2;
+}
+
+.client-kinds {
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr 1fr;
+  font-size: 12px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.client-kinds .kcell {
+  text-align: center;
+  border-left: 1px solid #e5e5e5;
+}
+
+.client-kinds .kcell:first-child {
+  border-left: none;
+}
+
+.work-kind-row th,
+.work-kind-row td {
+  height: 22px;
+}
+
+.work-kind-cell {
+  padding: 0;
+  vertical-align: middle;
+}
+
 .day-kinds .kcell {
   text-align: center;
   border-left: 1px solid #e5e5e5;

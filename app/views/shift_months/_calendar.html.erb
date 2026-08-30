@@ -67,6 +67,50 @@
                 <% end %>
               </div>
 
+              <div class="client-kinds">
+                <div class="kcell">通い</div>
+                <div class="kcell">泊まり</div>
+                <div class="kcell">訪問</div>
+              </div>
+            </td>
+          <% end %>
+        </tr>
+
+        <%# 利用者予定行：第1段階では空枠だけ表示 %>
+        <tr class="client-schedule-row">
+          <th class="occ-name">利用者</th>
+
+          <% week.each do |date| %>
+            <% in_month = (date.month == shift_month.month) %>
+
+            <td class="day-cell client-schedule-cell <%= in_month ? "" : "is-out is-show-out" %>">
+              <div class="client-schedule-slots">
+                <div class="client-schedule-slot">
+                  <div class="client-schedule-empty">-</div>
+                </div>
+
+                <div class="client-schedule-slot">
+                  <div class="client-schedule-empty">-</div>
+                </div>
+
+                <div class="client-schedule-slot">
+                  <div class="client-schedule-empty">-</div>
+                </div>
+              </div>
+            </td>
+          <% end %>
+        </tr>
+
+        <%# 勤務見出し行 %>
+        <tr class="work-kind-row">
+          <th class="occ-name"></th>
+
+          <% week.each_with_index do |date, i| %>
+            <% in_month = (date.month == shift_month.month) %>
+            <% night_on = night_enabled_by_date[date] %>
+            <% day_on   = day_effective_by_date[date] %>
+
+            <td class="day-head work-kind-cell <%= in_month ? "" : "is-out" %>">
               <div class="day-kinds">
                 <div class="kcell <%= day_on ? "" : "is-disabled" %>">日勤</div>
                 <div class="kcell <%= night_on ? "is-night-on" : "is-disabled" %>">夜勤</div>
