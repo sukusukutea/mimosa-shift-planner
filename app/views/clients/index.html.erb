@@ -1,0 +1,98 @@
+<div class="container-fluid">
+  <div class="row min-vh-100 flex-nowrap">
+    <div class="p-0 flex-shrink-0" style="width: 200px; background-color:#e6f0f0;">
+      <%= render "layouts/sidebar" %>
+    </div>
+
+    <div class="col-md-9 col-lg-10 py-4">
+      <div class="mx-auto" style="width: 90%; min-width: 700px;">
+
+        <div class="d-flex align-items-center mb-5">
+          <h1 class="h4 fw-bold mb-0 me-3">利用者一覧</h1>
+          <%= link_to "+利用者登録", new_client_path, class: "btn btn-secondary btn-sm py-1 px-2" %>
+        </div>
+
+        <% wdays = %w[月 火 水 木 金 土 日] %>
+
+        <table class="table table-sm table-bordered align-middle">
+          <thead>
+            <tr class="text-center">
+              <th style="width: 100px; background-color: #e6f0f0;">操作</th>
+              <th style="width: 150px; background-color: #e6f0f0;">表示名</th>
+              <th style="width: 150px; background-color: #e6f0f0;">ふりがな</th>
+              <th style="width: 120px; background-color: #e6f0f0;">通い</th>
+              <th style="width: 120px; background-color: #e6f0f0;">訪問</th>
+              <th style="width: 100px; background-color: #e6f0f0;">状態</th>
+            </tr>
+          </thead>
+
+          <tbody class="text-center">
+            <% if @clients.any? %>
+              <% @clients.each do |client| %>
+                <tr class="<%= client.active? ? "" : "table-secondary text-muted" %>">
+                  <td>
+                    <div class="d-inline-flex align-items-center gap-1">
+                      <%= button_to "編集",
+                                    edit_client_path(client),
+                                    method: :get,
+                                    class: "btn btn-outline-secondary btn-sm px-1 py-0",
+                                    form_class: "d-inline m-0" %>
+
+                      <% if client.active? %>
+                        <%= button_to "休止",
+                                      pause_client_path(client),
+                                      method: :patch,
+                                      form: { data: { turbo_confirm: "この利用者を休止にしますか？" } },
+                                      class: "btn btn-outline-warning btn-sm px-1 py-0",
+                                      form_class: "d-inline m-0" %>
+                      <% else %>
+                        <%= button_to "再開",
+                                      restore_client_path(client),
+                                      method: :patch,
+                                      form: { data: { turbo_confirm: "この利用者を利用中に戻しますか？" } },
+                                      class: "btn btn-outline-success btn-sm px-1 py-0",
+                                      form_class: "d-inline m-0" %>
+                      <% end %>
+
+                      <%= button_to "削除",
+                                    client_path(client),
+                                    method: :delete,
+                                    form: { data: { turbo_confirm: "この利用者を削除します。よろしいですか？" } },
+                                    class: "btn btn-outline-danger btn-sm px-1 py-0",
+                                    form_class: "d-inline m-0" %>
+                    </div>
+                  </td>
+
+                  <%
+                    day_service_wdays = client.client_regular_schedules
+                                                .select { |schedule| schedule.service_kind == "day_service" && schedule.active? }
+                                                .map(&:wday)
+                                                .sort
+
+                    visit_wdays = client.client_regular_schedules
+                                        .select { |schedule| schedule.service_kind == "visit" && schedule.active? }
+                                        .map(&:wday)
+                                        .sort
+                  %>
+
+                  <td><%= client.display_name %></td>
+                  <td><%= client.sort_key %></td>
+                  <td><%= day_service_wdays.any? ? day_service_wdays.map { |wday| wdays[wday] }.join("・") : "-" %></td>
+                  <td><%= visit_wdays.any? ? visit_wdays.map { |wday| wdays[wday] }.join("・") : "-" %></td>
+                  <td><%= client.active? ? "利用中" : "休止中" %></td>
+                </tr>
+              <% end %>
+            <% else %>
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                  利用者が登録されていません。「+利用者新規登録」から登録してください。
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+
+      </div>
+    </div>
+  </div>
+</div>

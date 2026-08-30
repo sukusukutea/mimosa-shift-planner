@@ -14,6 +14,13 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :clients, only: [ :index, :new, :create, :edit, :update, :destroy ] do
+    member do
+      patch :pause
+      patch :restore
+    end
+  end
+
   resources :shift_months, only: [ :new, :create, :destroy, :show ] do
     member do
       get :settings             # /shift_months/:id/settings

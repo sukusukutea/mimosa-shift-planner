@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_11_234110) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_080652) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -36,6 +36,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_234110) do
     t.bigint "user_id", null: false
     t.index ["user_id", "shift_kind", "day_of_week", "role"], name: "idx_base_weekday_requirements_unique", unique: true
     t.index ["user_id"], name: "index_base_weekday_requirements_on_user_id"
+  end
+
+  create_table "client_regular_schedules", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "client_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "service_kind", null: false
+    t.datetime "updated_at", null: false
+    t.integer "wday", null: false
+    t.index ["client_id", "service_kind", "wday"], name: "index_client_regular_schedules_on_client_kind_wday", unique: true
+    t.index ["client_id"], name: "index_client_regular_schedules_on_client_id"
+  end
+
+  create_table "clients", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "display_name", null: false
+    t.string "sort_key", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["user_id", "active", "sort_key"], name: "index_clients_on_user_id_and_active_and_sort_key"
+    t.index ["user_id", "display_name"], name: "index_clients_on_user_id_and_display_name", unique: true
+    t.index ["user_id"], name: "index_clients_on_user_id"
   end
 
   create_table "occupations", force: :cascade do |t|
@@ -279,6 +302,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_11_234110) do
 
   add_foreign_key "base_skill_requirements", "users"
   add_foreign_key "base_weekday_requirements", "users"
+  add_foreign_key "client_regular_schedules", "clients"
+  add_foreign_key "clients", "users"
   add_foreign_key "shift_day_assignments", "shift_month_time_options"
   add_foreign_key "shift_day_assignments", "shift_months"
   add_foreign_key "shift_day_assignments", "staff_day_time_options"
