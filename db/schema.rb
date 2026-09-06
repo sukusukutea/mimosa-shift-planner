@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_30_080652) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_025934) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -149,6 +149,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_080652) do
     t.datetime "updated_at", null: false
     t.index ["shift_day_setting_id", "shift_kind"], name: "index_shift_day_styles_on_shift_day_setting_id_and_shift_kind", unique: true
     t.index ["shift_day_setting_id"], name: "index_shift_day_styles_on_shift_day_setting_id"
+  end
+
+  create_table "shift_month_client_schedules", force: :cascade do |t|
+    t.string "client_display_name", null: false
+    t.bigint "client_id", null: false
+    t.datetime "created_at", null: false
+    t.date "date", null: false
+    t.integer "service_kind", null: false
+    t.bigint "shift_month_id", null: false
+    t.integer "source", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["client_id"], name: "index_shift_month_client_schedules_on_client_id"
+    t.index ["shift_month_id", "client_id", "date", "service_kind"], name: "index_shift_month_client_schedules_on_unique_client_service", unique: true
+    t.index ["shift_month_id", "date", "service_kind"], name: "index_shift_month_client_schedules_on_date_and_kind"
+    t.index ["shift_month_id"], name: "index_shift_month_client_schedules_on_shift_month_id"
   end
 
   create_table "shift_month_requirements", force: :cascade do |t|
@@ -314,6 +329,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_080652) do
   add_foreign_key "shift_day_settings", "shift_months"
   add_foreign_key "shift_day_skill_requirements", "shift_months"
   add_foreign_key "shift_day_styles", "shift_day_settings"
+  add_foreign_key "shift_month_client_schedules", "clients"
+  add_foreign_key "shift_month_client_schedules", "shift_months"
   add_foreign_key "shift_month_requirements", "shift_months"
   add_foreign_key "shift_month_skill_requirements", "shift_months"
   add_foreign_key "shift_month_time_options", "shift_months"

@@ -46,15 +46,15 @@
           <% if @show_carry_over_confirm && @carry_over_prev_month.present? %>
             <div class="alert alert-info mt-4">
               <div class="fw-bold mb-2">
-                前月の勤務をもとに月またぎの勤務を自動で設定しますか？
+                前月の勤務を今月に引き継ぎますか？
               </div>
 
               <div class="small mb-3">
-                <%= @carry_over_prev_month.year %>年<%= @carry_over_prev_month.month %>月の確定シフトが見つかりました。<br>
-                月またぎ設定を使うと、前月末の勤務状況をもとに、今月初日の夜勤明け・休み必要日などの判定に反映します。
+                <%= @carry_over_prev_month.year %>年<%= @carry_over_prev_month.month %>月末の勤務をもとに、今月初めの夜勤明け・休みを反映します。
 
                 <div class="mt-2">
-                  ※ 既存月で月またぎ設定を有効にした場合、対象外の職員の設定はそのまま残ります。対象職員のみ、月またぎ設定と重複する休日設定・勤務指定は解除され、月またぎ設定が優先されます。
+                  反映されるのは、今月初めに「夜勤明け」「休み」が必要な職員のみです。<br>
+                  対象日に登録済の休日設定や勤務指定がある場合は、前月からの引き継ぎが優先されます。
                 </div>
               </div>
 

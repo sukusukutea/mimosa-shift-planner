@@ -24,7 +24,12 @@
 
   <div class="mb-3">
     <%= f.label :sort_key, "ふりがな", class: "form-label" %>
-    <%= f.text_field :sort_key, class: "form-control", required: true, autocomplete: "off" %>
+    <%= f.text_field :sort_key,
+                 class: "form-control",
+                 required: true,
+                 autocomplete: "off",
+                 pattern: "[ぁ-んー]+",
+                 title: "ひらがなで入力してください" %>
   </div>
 
   <div class="mb-4">

@@ -3,9 +3,15 @@ class ClientsController < ApplicationController
   before_action :set_client, only: [:edit, :update, :destroy, :pause, :restore]
 
   def index
-    @clients = current_user.clients
-                           .includes(:client_regular_schedules)
-                           .ordered
+    @active_clients = current_user.clients
+                                  .active
+                                  .includes(:client_regular_schedules)
+                                  .ordered
+
+    @inactive_clients = current_user.clients
+                                    .where(active: false)
+                                    .includes(:client_regular_schedules)
+                                    .ordered
   end
 
   def new

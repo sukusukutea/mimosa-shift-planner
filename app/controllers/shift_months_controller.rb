@@ -5,8 +5,10 @@ class ShiftMonthsController < ApplicationController
                                         :generate_draft, :preview, :edit_draft, :confirm_draft, :show, :bulk_add_staff_holidays,
                                         :remove_staff_holiday, :update_weekday_requirements, :update_designation,
                                         :remove_designation, :update_draft_assignment, :start_edit_from_confirmed,
-                                        :export_excel, :sync_weekday_requirements, :add_month_time_option,
+                                        :export_excel, :sync_weekday_requirements, :sync_client_schedules, :add_month_time_option,
                                         :set_default_month_time_option, :remove_month_time_option ]
+  before_action :ensure_month_client_schedules!, only: [ :settings ]
+  before_action :check_month_client_schedule_sync_status!, only: [ :settings ]
   before_action :build_calendar_vars, only: [ :settings, :preview, :edit_draft, :show ]
 
   def new
@@ -682,7 +684,11 @@ end
     end
 
     session[draft_token_session_key] = token
-    redirect_to preview_shift_month_path(@shift_month), notice: "シフト案を作成しました。"
+
+    preview_params = {}
+    preview_params[:hide_client_sync_notice] = "1" if params[:hide_client_sync_notice] == "1"
+
+    redirect_to preview_shift_month_path(@shift_month, preview_params), notice: "シフト案を作成しました。"
   rescue ArgumentError
     redirect_to settings_shift_month_path(@shift_month), alert: "日付形式が不正です。"
   end
@@ -1208,6 +1214,16 @@ end
               notice: "曜日別人員配置（元設定）をこの月に同期しました。"
   end
 
+  def sync_client_schedules
+    ShiftMonthClientSchedules::Synchronizer.new(shift_month: @shift_month).call
+
+    redirect_to settings_shift_month_path(@shift_month),
+                notice: "利用者予定をこの月に同期しました。"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to settings_shift_month_path(@shift_month),
+                alert: "利用者予定の同期に失敗しました：#{e.record.errors.full_messages.join(", ")}"
+  end
+
   private
 
   def require_organization!
@@ -1338,6 +1354,8 @@ end
         @designations_by_date[d.date][kind] = d.staff_id
       end
     end
+
+    @client_schedules_by_date = build_client_schedules_by_date
   end
 
   def load_holidays
@@ -1443,6 +1461,27 @@ end
     end
 
     hash
+  end
+
+  def build_client_schedules_by_date
+    schedules_by_date = @dates.index_with do
+      {
+        "day_service" => [],
+        "stay" => [],
+        "visit" => []
+      }
+    end
+
+    @shift_month.shift_month_client_schedules
+                .includes(:client)
+                .ordered
+                .each do |schedule|
+      next unless schedules_by_date.key?(schedule.date)
+
+      schedules_by_date[schedule.date][schedule.service_kind] << schedule.client_display_name
+    end
+
+    schedules_by_date
   end
 
   # ShiftDayAssignmentのrelationから、{ "YYYY-MM-DD" => { "day" => [{"slot"=>..,"staff_id"=>..}, ...], ... } } を作る
@@ -1895,5 +1934,14 @@ end
         end
       end
     end
+  end
+
+  def ensure_month_client_schedules!
+    ShiftMonthClientSchedules::RegularSyncer.new(shift_month: @shift_month).call
+  end
+
+  def check_month_client_schedule_sync_status!
+    @client_schedule_sync_status =
+      ShiftMonthClientSchedules::SyncStatusChecker.new(shift_month: @shift_month).call
   end
 end

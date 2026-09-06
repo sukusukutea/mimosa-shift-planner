@@ -28,6 +28,7 @@ Rails.application.routes.draw do
 
       patch :update_weekday_requirements
       post :sync_weekday_requirements
+      post :sync_client_schedules
       patch :update_daily
 
       post :update_designation

@@ -16,6 +16,7 @@
 <% saved                            = local_assigns.fetch(:saved, nil) %>
 <% alerts_by_date                   = local_assigns.fetch(:alerts_by_date, nil) %>
 <% overstaffing_by_date             = local_assigns.fetch(:overstaffing_by_date, {}) || {} %>
+<% client_schedules_by_date         = local_assigns.fetch(:client_schedules_by_date, @client_schedules_by_date || {}) || {} %>
 <% designations_by_date             = local_assigns.fetch(:designations_by_date, {}) || {} %>
 <% holiday_requests_by_date         = local_assigns.fetch(:holiday_requests_by_date, nil) %>
 <% unassigned_display_staffs_by_date = local_assigns.fetch(:unassigned_display_staffs_by_date, nil) %>
@@ -82,19 +83,50 @@
 
           <% week.each do |date| %>
             <% in_month = (date.month == shift_month.month) %>
+            <% client_schedule = client_schedules_by_date[date] || {} %>
 
             <td class="day-cell client-schedule-cell <%= in_month ? "" : "is-out is-show-out" %>">
               <div class="client-schedule-slots">
                 <div class="client-schedule-slot">
-                  <div class="client-schedule-empty">-</div>
+                  <% names = Array(client_schedule["day_service"]) %>
+
+                  <% if names.any? %>
+                    <div class="client-schedule-names">
+                      <% names.each do |name| %>
+                        <div class="client-schedule-name"><%= name %></div>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <div class="client-schedule-empty">-</div>
+                  <% end %>
                 </div>
 
                 <div class="client-schedule-slot">
-                  <div class="client-schedule-empty">-</div>
+                  <% names = Array(client_schedule["stay"]) %>
+
+                  <% if names.any? %>
+                    <div class="client-schedule-names">
+                      <% names.each do |name| %>
+                        <div class="client-schedule-name"><%= name %></div>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <div class="client-schedule-empty">-</div>
+                  <% end %>
                 </div>
 
                 <div class="client-schedule-slot">
-                  <div class="client-schedule-empty">-</div>
+                  <% names = Array(client_schedule["visit"]) %>
+
+                  <% if names.any? %>
+                    <div class="client-schedule-names">
+                      <% names.each do |name| %>
+                        <div class="client-schedule-name"><%= name %></div>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <div class="client-schedule-empty">-</div>
+                  <% end %>
                 </div>
               </div>
             </td>
