@@ -792,3 +792,21 @@ body.sidebar-left-collapsed #main-content {
   font-weight: 600;
   font-size: 11px;
 }
+
+.shift-calendar-month .slot div.holiday-in-slot {
+  display: block;
+  width: fit-content;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.shift-calendar-month .slot span.holiday-in-slot {
+  display: inline-block;
+  width: fit-content;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}

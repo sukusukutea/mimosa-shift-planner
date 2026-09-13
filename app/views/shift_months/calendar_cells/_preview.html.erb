@@ -254,8 +254,31 @@
               <% next if night_related_ids.include?(staff.id.to_i) %>
               <% next unless row_key_for(staff) == row_key %>
 
-              <div class="small text-danger">
-                <%= staff.last_name %>(休)
+              <% holiday_request =
+                  Array((holiday_requests_by_date || {})[date]).find { |request| request.staff_id.to_i == staff.id.to_i } %>
+
+              <% label =
+                  case holiday_request&.holiday_type
+                  when "requested_off"
+                    "(希望休)"
+                  when "paid_leave"
+                    "(有休)"
+                  else
+                    "(休)"
+                  end %>
+
+              <% css_class =
+                  case holiday_request&.holiday_type
+                  when "requested_off"
+                    "small text-danger holiday-in-slot holiday-requested-off"
+                  when "paid_leave"
+                    "small text-danger holiday-in-slot holiday-paid-leave"
+                  else
+                    "small text-danger"
+                  end %>
+
+              <div class="<%= css_class %>">
+                <%= staff.last_name %><%= label %>
               </div>
             <% end %>
           <% end %>
