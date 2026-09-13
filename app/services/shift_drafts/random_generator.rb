@@ -970,6 +970,53 @@ module ShiftDrafts
       staff&.occupation&.name.to_s == "管理者"
     end
 
+    def same_role_day_shortage?(staff, date)
+      return false if staff.nil?
+      return false unless staff.counts_toward_requirements?
+
+      role =
+        if staff.occupation&.name.to_s.include?("看護")
+          :nurse
+        elsif staff.occupation&.name.to_s.include?("介護")
+          :care
+        end
+
+      return false if role.nil?
+
+      required =
+        @shift_month
+          .required_counts_for(date, shift_kind: :day)
+          .fetch(role, 0)
+          .to_i
+
+      return false if required <= 0
+
+      day_hash = @draft[date.iso8601] || {}
+      rows = day_hash[:day] || day_hash["day"]
+
+      actual =
+        Array(rows).count do |row|
+          sid = extract_staff_id_from_row(row)
+          assigned_staff = @staff_by_id[sid.to_i]
+
+          next false if assigned_staff.nil?
+          next false unless assigned_staff.counts_toward_requirements?
+
+          occupation_name = assigned_staff.occupation&.name.to_s
+
+          case role
+          when :nurse
+            occupation_name.include?("看護")
+          when :care
+            occupation_name.include?("介護")
+          else
+            false
+          end
+        end
+
+      actual < required
+    end
+
     def adjust_free_holiday_surpluses!(month_begin:, month_end:)
       targets = free_holiday_surplus_targets(month_begin: month_begin, month_end: month_end)
       return if targets.blank?
@@ -985,7 +1032,12 @@ module ShiftDrafts
           candidate_dates =
             @dates
               .select { |date| can_add_day_for_free_holiday_adjustment?(staff, date) }
-              .sort_by { |date| [ Array(@draft[date.iso8601]&.dig(:day)).size, rand ] }
+              .sort_by do |date|
+                [
+                  same_role_day_shortage?(staff, date) ? 0 : 1,
+                  rand
+                ]
+              end
 
           date = candidate_dates.first
           break if date.nil?
