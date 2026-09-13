@@ -249,18 +249,6 @@
               "(休)"
             end %>
 
-        <% off_class =
-            case holiday_request&.holiday_type
-            when "admin_off"
-              "small text-danger holiday-in-slot holiday-admin-off"
-            when "requested_off"
-              "small text-danger holiday-in-slot holiday-requested-off"
-            when "paid_leave"
-              "small text-danger holiday-in-slot holiday-paid-leave"
-            else
-              "small text-danger"
-            end %>
-
         <% selected =
             if Array(day_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i }
               "day"
@@ -295,6 +283,20 @@
               "#{s.last_name}(休)"
             end %>
 
+        <% admin_holiday_css_class =
+          if selected.to_s.start_with?("off")
+            case selected
+            when "off:requested_off"
+              "holiday-in-slot holiday-requested-off"
+            when "off:paid_leave"
+              "holiday-in-slot holiday-paid-leave"
+            else
+              ""
+            end
+          else
+            ""
+          end %>
+
         <% display_time_text =
             case selected
             when "early"
@@ -307,7 +309,7 @@
 
         <div class="shift-edit-row" data-controller="shift-edit">
           <div class="<%= display_class %>">
-            <span class="shift-edit-name"><%= display_text %></span>
+            <span class="shift-edit-name <%= admin_holiday_css_class %>"><%= display_text %></span>
 
             <% if display_time_text.present? %>
               <span class="shift-edit-time"><%= display_time_text %></span>

@@ -9,29 +9,56 @@ module ShiftExports
     MON_LEFT_COL = 3 # C列（1-based）
     DAY_STRIDE   = 3 # 3列ずつ進む（C->F->I...）
 
-    # テンプレの行位置（あなたの指定）
-    DATE_ROW_FIRST = 3     # 1週目の日付行
-    WEEK_ROW_STEP  = 42    # 1週ごとのブロック差分（3->39 が 36）
+    # 利用者欄
+    # 1週目: 5行目開始
+    # 通い: C/F/I/L/O/R/U
+    # 泊まり: D/G/J/M/P/S/V
+    # 訪問: E/H/K/N/Q/T/W
+    CLIENT_BLOCK_FIRST = 5
+
+    CLIENT_COL_OFFSETS = {
+      commute: 0, # 通い
+      stay:    1, # 泊まり
+      visit:   2  # 訪問
+    }.freeze
+
+    CLIENT_MAX_ROWS = {
+      commute: 12,
+      stay:    5,
+      visit:   12
+    }.freeze
+
+    CLIENT_STAY_FILL_COLOR = "FFD966"       # 泊まりがある日の濃い黄色
+    CLIENT_STAY_START_FONT_COLOR = "E67E22" # 泊まり初日の通い名
+    CLIENT_STAY_FILL_ROWS = 12
+
+    # テンプレの行位置
+    DATE_ROW_FIRST = 3
+    WEEK_ROW_STEP  = 37
 
     SHEET_NAME = "原本１か月"
 
     # 職員ブロック（1週目の開始）
     STAFF_BLOCK_FIRST = 19
 
+    # 看護欄6行目に管理者を固定表示するための位置
+    # 1週目: 24行目 = STAFF_BLOCK_FIRST(19) + 5
+    NURSE_ADMIN_OFFSET = 5
+
     # 1週ブロック内の開始行オフセット
     ROW_OFFSETS = {
-      nurse:    0,   # 19
-      care_mgr: 9,   # 24
-      care:     10,   # 29
-      cook:     24,  # 43
-      clerk:    25   # 44
+      nurse:    0,   # 19〜24
+      care_mgr: 6,   # 25
+      care:     7,   # 26〜37
+      cook:     19,  # 38
+      clerk:    20   # 39
     }.freeze
 
-    # 各職種の縦枠上限（あなたの指定）
+    # 各職種の縦枠上限
     MAX_ROWS = {
-      nurse: 9,
+      nurse: 5,
       care_mgr: 1,
-      care: 14,
+      care: 12,
       cook: 1,
       clerk: 1
     }.freeze
@@ -81,11 +108,12 @@ module ShiftExports
         @shift_month.shift_month_time_options
                     .late
                     .index_by(&:id)
+      client_schedules_by_date = build_client_schedules_by_date(dates: dates)
 
       # ---- style indexes ----
       red_style_index = read_cell(sheet, 2, col_index("U"))&.style_index # U2
-      requested_off_style_index = read_cell(sheet, 257, col_index("L"))&.style_index # L257
-      paid_leave_style_index    = read_cell(sheet, 258, col_index("L"))&.style_index # L258
+      requested_off_style_index = read_cell(sheet, 227, col_index("L"))&.style_index # L227
+      paid_leave_style_index    = read_cell(sheet, 228, col_index("L"))&.style_index # L228
       admin_off_style_index     = read_cell(sheet, 3, col_index("B"))&.style_index   # B3
 
       # ※日付セルは「元の背景/罫線/中央揃え」を維持し、赤はフォントだけ差し替える
@@ -144,9 +172,42 @@ module ShiftExports
 
         day_col   = MON_LEFT_COL + (DAY_STRIDE * wday_idx)     # C/F/I...
         night_col = day_col + 1                                # D/G/J...
-        # stay_col  = day_col + 2                              # E/H/K...（当面触らない）
 
         ctx = build_day_context(assignments_hash, date, carry_over_state: carry_over_state, month_begin: month_begin)
+
+        client_start_row = CLIENT_BLOCK_FIRST + (WEEK_ROW_STEP * week_idx)
+        client_schedule = client_schedules_by_date[date] || {}
+
+        write_client_lines_to_column(
+          book: book,
+          sheet: sheet,
+          start_row: client_start_row,
+          col: day_col + CLIENT_COL_OFFSETS.fetch(:commute),
+          rows: client_schedule["day_service"],
+          max_rows: CLIENT_MAX_ROWS.fetch(:commute),
+          stay_filled: client_schedule["stay"].present?
+        )
+
+        write_client_lines_to_column(
+          book: book,
+          sheet: sheet,
+          start_row: client_start_row,
+          col: day_col + CLIENT_COL_OFFSETS.fetch(:stay),
+          rows: client_schedule["stay"],
+          max_rows: CLIENT_MAX_ROWS.fetch(:stay),
+          fill_rows: CLIENT_STAY_FILL_ROWS,
+          stay_filled: client_schedule["stay"].present?
+        )
+
+        write_client_lines_to_column(
+          book: book,
+          sheet: sheet,
+          start_row: client_start_row,
+          col: day_col + CLIENT_COL_OFFSETS.fetch(:visit),
+          rows: client_schedule["visit"],
+          max_rows: CLIENT_MAX_ROWS.fetch(:visit),
+          stay_filled: client_schedule["stay"].present?
+        )
 
         ROW_OFFSETS.each_key do |row_key|
           start_row = STAFF_BLOCK_FIRST + (WEEK_ROW_STEP * week_idx) + ROW_OFFSETS.fetch(row_key)
@@ -197,6 +258,52 @@ module ShiftExports
             red_style_index: red_style_index
           )
         end
+
+        # 管理者は看護欄6行目に固定
+        admin_start_row = STAFF_BLOCK_FIRST + (WEEK_ROW_STEP * week_idx) + NURSE_ADMIN_OFFSET
+
+        admin_day_lines = build_day_lines(
+          row_key: :admin,
+          date: date,
+          ctx: ctx,
+          staff_by_id: staff_by_id,
+          sorted_staffs_by_row_key: sorted_staffs_by_row_key,
+          unassigned_by_date: unassigned_by_date,
+          holiday_requests_by_date: holiday_requests_by_date,
+          default_late_time_text: default_late_time_text,
+          late_time_options_by_id: late_time_options_by_id,
+          carry_over_state: carry_over_state,
+          month_begin: month_begin
+        )
+
+        admin_night_lines = build_night_lines(
+          row_key: :admin,
+          ctx: ctx,
+          staff_by_id: staff_by_id
+        )
+
+        write_lines_to_column(
+          book: book,
+          sheet: sheet,
+          start_row: admin_start_row,
+          col: day_col,
+          lines: admin_day_lines,
+          max_rows: 1,
+          red_style_index: red_style_index,
+          requested_off_style_index: requested_off_style_index,
+          paid_leave_style_index: paid_leave_style_index,
+          admin_off_style_index: admin_off_style_index
+        )
+
+        write_lines_to_column(
+          book: book,
+          sheet: sheet,
+          start_row: admin_start_row,
+          col: night_col,
+          lines: admin_night_lines,
+          max_rows: 1,
+          red_style_index: red_style_index
+        )
       end
 
       apply_print_settings!(book, sheet)
@@ -245,12 +352,16 @@ module ShiftExports
 
     def row_key_for(staff)
       return nil if staff.nil?
+
       name = staff.occupation&.name.to_s
+
+      return :admin    if name == "管理者"
       return :nurse    if name.include?("看護")
       return :care_mgr if name.include?("ケアマネ")
       return :care     if name.include?("介護")
       return :cook     if name.include?("管理栄養士")
       return :clerk    if name.include?("事務")
+
       nil
     end
 
@@ -267,6 +378,165 @@ module ShiftExports
                      ]
                    end
                  end
+    end
+
+    def build_client_schedules_by_date(dates:)
+      schedules_by_date = dates.index_with do
+        {
+          "day_service" => [],
+          "stay" => [],
+          "visit" => []
+        }
+      end
+
+      schedules =
+        @shift_month.shift_month_client_schedules
+                    .active
+                    .includes(:client)
+                    .ordered
+                    .to_a
+
+      stay_ranges_by_client_id = build_stay_ranges_by_client_id(schedules)
+      stay_info_by_key = build_stay_info_by_key(stay_ranges_by_client_id)
+
+      schedules.each do |schedule|
+        next unless schedules_by_date.key?(schedule.date)
+
+        if schedule.service_kind == "stay"
+          stay_info = stay_info_by_key[[schedule.client_id, schedule.date]]
+
+          schedules_by_date[schedule.date]["stay"] << {
+            name: stay_display_name(schedule, stay_info),
+            client_id: schedule.client_id,
+            stay_position: stay_info&.dig(:position)
+          }
+        else
+          schedules_by_date[schedule.date][schedule.service_kind] << {
+            name: schedule.client_display_name,
+            client_id: schedule.client_id,
+            source: schedule.source
+          }
+        end
+      end
+
+      add_stay_start_day_service_display!(
+        schedules_by_date,
+        schedules,
+        stay_ranges_by_client_id
+      )
+
+      hide_client_schedules_during_stay!(
+        schedules_by_date,
+        stay_ranges_by_client_id
+      )
+
+      schedules_by_date
+    end
+
+    def build_stay_ranges_by_client_id(schedules)
+      schedules
+        .select { |schedule| schedule.service_kind == "stay" }
+        .group_by(&:client_id)
+        .transform_values do |rows|
+          rows
+            .sort_by(&:date)
+            .chunk_while { |previous_schedule, next_schedule| next_schedule.date == previous_schedule.date + 1 }
+            .map do |range_schedules|
+              {
+                start_date: range_schedules.first.date,
+                end_date: range_schedules.last.date,
+                schedules: range_schedules
+              }
+            end
+        end
+    end
+
+    def build_stay_info_by_key(stay_ranges_by_client_id)
+      stay_ranges_by_client_id.each_with_object({}) do |(client_id, ranges), hash|
+        ranges.each do |range|
+          range[:schedules].each do |schedule|
+            position =
+              if schedule.date == range[:start_date]
+                "start"
+              elsif schedule.date == range[:end_date]
+                "end"
+              else
+                "middle"
+              end
+
+            hash[[client_id, schedule.date]] = {
+              start_date: range[:start_date],
+              end_date: range[:end_date],
+              position: position
+            }
+          end
+        end
+      end
+    end
+
+    def stay_display_name(schedule, stay_info)
+      if stay_info && stay_info[:position] == "end"
+        "#{schedule.client_display_name}(帰"
+      else
+        schedule.client_display_name
+      end
+    end
+
+    def add_stay_start_day_service_display!(schedules_by_date, schedules, stay_ranges_by_client_id)
+      stay_ranges_by_client_id.each do |client_id, ranges|
+        ranges.each do |range|
+          start_date = range[:start_date]
+          next unless schedules_by_date.key?(start_date)
+
+          stay_schedule = schedules.find do |schedule|
+            schedule.client_id == client_id &&
+              schedule.service_kind == "stay" &&
+              schedule.date == start_date
+          end
+          next if stay_schedule.blank?
+
+          existing_row =
+            schedules_by_date[start_date]["day_service"].find do |row|
+              row[:client_id] == client_id
+            end
+
+          if existing_row
+            existing_row[:stay_start] = true
+          else
+            schedules_by_date[start_date]["day_service"] << {
+              name: stay_schedule.client_display_name,
+              client_id: client_id,
+              source: "stay_start",
+              stay_start: true
+            }
+          end
+        end
+      end
+    end
+
+    def hide_client_schedules_during_stay!(schedules_by_date, stay_ranges_by_client_id)
+      stay_ranges_by_client_id.each do |client_id, ranges|
+        ranges.each do |range|
+          start_date = range[:start_date]
+          end_date = range[:end_date]
+
+          ((start_date + 1)..end_date).each do |date|
+            next unless schedules_by_date.key?(date)
+
+            schedules_by_date[date]["day_service"].reject! do |row|
+              row[:client_id] == client_id
+            end
+          end
+
+          ((start_date + 1)...end_date).each do |date|
+            next unless schedules_by_date.key?(date)
+
+            schedules_by_date[date]["visit"].reject! do |row|
+              row[:client_id] == client_id
+            end
+          end
+        end
+      end
     end
 
     def build_confirmed_assignments_hash(month_begin, month_end)
@@ -404,6 +674,68 @@ module ShiftExports
       early_rows = ctx[:early_rows]
       late_rows  = ctx[:late_rows]
       night_related_ids = ctx[:night_related_ids] || []
+
+      # 管理者は看護欄6行目に固定表示するため、休みの日も名簿から直接出す
+      if row_key == :admin
+        staff = Array(sorted_staffs_by_row_key[:admin]).first
+        return [] if staff.nil?
+
+        assigned_kind = nil
+        assigned_day_opt_id = nil
+        assigned_late_time_option_id = nil
+
+        { day: day_rows, early: early_rows, late: late_rows }.each do |kind_sym, rows|
+          Array(rows).each do |r|
+            sid = (r["staff_id"] || r[:staff_id]).to_i
+            next unless sid == staff.id.to_i
+
+            assigned_kind = kind_sym
+
+            if kind_sym == :day
+              opt_id = (r["staff_day_time_option_id"] || r[:staff_day_time_option_id]).to_i
+              assigned_day_opt_id = (opt_id > 0 ? opt_id : nil)
+            elsif kind_sym == :late
+              late_opt_id = (r["shift_month_time_option_id"] || r[:shift_month_time_option_id]).to_i
+              assigned_late_time_option_id = (late_opt_id > 0 ? late_opt_id : nil)
+            end
+          end
+        end
+
+        if assigned_kind == :early
+          return [{ text: "#{staff.last_name} #{EARLY_TIME_TEXT}", red: false }]
+        end
+
+        if assigned_kind == :late
+          late_text = late_time_options_by_id[assigned_late_time_option_id]&.time_text.presence || default_late_time_text
+          return [{ text: "#{staff.last_name} #{late_text}", red: false }]
+        end
+
+        if assigned_kind == :day
+          t = day_time_text_for(staff: staff, picked_opt_id: assigned_day_opt_id, date: date)
+
+          return [
+            {
+              text: t.present? ? "#{staff.last_name} #{t}" : staff.last_name.to_s,
+              red: false
+            }
+          ]
+        end
+
+        holiday_request =
+          Array(holiday_requests_by_date[date]).find { |request| request.staff_id.to_i == staff.id.to_i }
+
+        if night_related_ids.include?(staff.id.to_i)
+          return [{ text: staff.last_name.to_s, red: true, holiday_type: nil }]
+        end
+
+        return [
+          {
+            text: "#{staff.last_name}（休み）",
+            red: true,
+            holiday_type: holiday_request&.holiday_type
+          }
+        ]
+      end
 
       # 介護は「全員名簿で勤務/休み」
       if row_key == :care
@@ -587,6 +919,55 @@ module ShiftExports
       picked&.time_text.to_s
     end
 
+  def write_client_lines_to_column(book:, sheet:, start_row:, col:, rows:, max_rows:, fill_rows: max_rows, stay_filled: false)
+    # 背景色だけ先に付ける
+    # ※テンプレートにもともと入っている文字は消さない
+    if stay_filled
+      fill_rows.times do |i|
+        cell = ensure_cell(sheet, start_row + i, col)
+        next unless cell
+
+        cell.change_fill(CLIENT_STAY_FILL_COLOR)
+      end
+    end
+
+    # 利用者名を出力する範囲だけ空にする
+    # 泊まり列は max_rows=5 のため、6行目以降のテンプレート文字は消さない
+    max_rows.times do |i|
+      cell = ensure_cell(sheet, start_row + i, col)
+      next unless cell
+
+      cell.change_contents("")
+    end
+
+    Array(rows).first(max_rows).each_with_index do |row, i|
+      name =
+        if row.is_a?(Hash)
+          row[:name] || row["name"]
+        else
+          row.to_s
+        end
+
+      cell = ensure_cell(sheet, start_row + i, col)
+      next unless cell
+
+      cell.change_contents(name.to_s)
+
+      stay_start =
+        row.is_a?(Hash) && (row[:stay_start] == true || row["stay_start"] == true)
+
+      next unless stay_start
+
+      # 泊まり初日の通い表示はオレンジ
+      cell.change_font_color(CLIENT_STAY_START_FONT_COLOR)
+      cell.change_font_bold(true) if cell.respond_to?(:change_font_bold)
+    end
+
+    if Array(rows).size > max_rows
+      Rails.logger.warn("[export_excel] client overflow: row=#{start_row} col=#{col} rows=#{rows.size} max=#{max_rows}")
+    end
+  end
+
     # -----------------------------
     # Excel書き込み（style保持 + 赤はフォントのみ）
     # -----------------------------
@@ -733,8 +1114,8 @@ module ShiftExports
       sheet.sheet_pr.page_set_up_pr ||= RubyXL::PageSetupProperties.new
       sheet.sheet_pr.page_set_up_pr.fit_to_page = true
 
-      # 印刷範囲を A1:X256 に固定する
-      set_print_area!(book, sheet, "$A$1:$X$256")
+      # 印刷範囲を A1:X230 に固定する
+      set_print_area!(book, sheet, "$A$1:$X$230")
 
       # 余白。単位はインチ。
       sheet.page_margins.left = 0.15
