@@ -192,13 +192,24 @@ module ShiftDrafts
 
           while Array(day_hash[kind]).size < limit
             forced_off_ids_now = forced_off_staff_ids_on(date)
-            exclude_for_normal = assigned_today.to_a + holiday_ids + forced_off_ids_now
+
+            holiday_ids_for_kind =
+              if kind == :night
+                holiday_ids_for_night_entry(date)
+              else
+                holiday_ids
+              end
+
+            exclude_for_normal = assigned_today.to_a + holiday_ids_for_kind + forced_off_ids_now
 
             staff = pick_staff_for(kind, exclude_ids: exclude_for_normal, date: date)
 
             # 夜勤候補が0なら「夜勤2連続」を例外で許可
             if staff.nil? && kind == :night
-              staff = pick_staff_for_double_night(date: date, exclude_ids: assigned_today.to_a + holiday_ids)
+              staff = pick_staff_for_double_night(
+                date: date,
+                exclude_ids: assigned_today.to_a + holiday_ids_for_night_entry(date)
+              )
             end
 
             break if staff.nil?
@@ -641,6 +652,15 @@ module ShiftDrafts
         .select { |_sid, set| set.include?(date) }
         .keys
     end
+
+    def holiday_ids_for_night_entry(date)
+      ids = Array(@holiday_ids_by_date[date])
+
+      next_date = date + 1
+      ids += Array(@holiday_ids_by_date[next_date]) if @dates.include?(next_date)
+
+      ids.map(&:to_i).uniq
+    end    
 
     def apply_carry_over_forced_offs!(month_begin:)
       return if @carry_over_state.blank?
