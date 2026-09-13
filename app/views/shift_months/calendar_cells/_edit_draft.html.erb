@@ -57,25 +57,86 @@
   </div>
 <% else %>
   <div class="day-slots">
-    <div id="day-slot-<%= row_key %>-<%= date.iso8601 %>" class="slot slot-day">
-      <%= render "shift_months/calendar_cells/day_slot_body",
-        date: date,
-        in_month: in_month,
-        row_key: row_key,
-        shift_month: shift_month,
-        day_enabled_by_date: day_enabled_by_date,
-        early_enabled_by_date: early_enabled_by_date,
-        late_enabled_by_date: late_enabled_by_date,
-        required_by_date: required_by_date,
-        required_skill_by_date: required_skill_by_date,
-        alerts_by_date: alerts_by_date,
-        draft: draft,
-        staff_by_id: staff_by_id,
-        unassigned_display_staffs_by_date: unassigned_display_staffs_by_date,
-        holiday_requests_by_date: holiday_requests_by_date,
-        designations_by_date: designations_by_date,
-        carry_over_state: carry_over_state
-      %>
+    <div
+      id="day-slot-<%= row_key %>-<%= date.iso8601 %>"
+      class="slot slot-day <%= "slot-day-with-admin" if row_key == :nurse && in_month %>"
+    >
+      <div class="staff-lines-main">
+        <%= render "shift_months/calendar_cells/day_slot_body",
+          date: date,
+          in_month: in_month,
+          row_key: row_key,
+          shift_month: shift_month,
+          day_enabled_by_date: day_enabled_by_date,
+          early_enabled_by_date: early_enabled_by_date,
+          late_enabled_by_date: late_enabled_by_date,
+          required_by_date: required_by_date,
+          required_skill_by_date: required_skill_by_date,
+          alerts_by_date: alerts_by_date,
+          draft: draft,
+          staff_by_id: staff_by_id,
+          unassigned_display_staffs_by_date: unassigned_display_staffs_by_date,
+          holiday_requests_by_date: holiday_requests_by_date,
+          designations_by_date: designations_by_date,
+          carry_over_state: carry_over_state
+        %>
+      </div>
+
+      <% if row_key == :nurse && in_month %>
+        <% admin_staffs =
+            staff_by_id.values
+                      .select { |s| s&.active? && s.occupation&.name.to_s == "管理者" }
+                      .sort_by do |s|
+                        [
+                          s.workday_constraint == "free" ? 0 : 1,
+                          s.last_name_kana.to_s,
+                          s.first_name_kana.to_s,
+                          s.id.to_i
+                        ]
+                      end %>
+
+        <% if admin_staffs.any? %>
+          <div class="admin-staff-bottom">
+            <% admin_staffs.each do |s| %>
+              <% assigned =
+                  Array(day_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i } ||
+                  Array(early_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i } ||
+                  Array(late_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i } %>
+
+              <% holiday_request =
+                  Array((holiday_requests_by_date || {})[date]).find { |request| request.staff_id.to_i == s.id.to_i } %>
+
+              <% off_label =
+                  case holiday_request&.holiday_type
+                  when "requested_off"
+                    "(希望休)"
+                  when "paid_leave"
+                    "(有休)"
+                  else
+                    "(休)"
+                  end %>
+
+              <% off_class =
+                  case holiday_request&.holiday_type
+                  when "admin_off"
+                    "small text-danger holiday-in-slot holiday-admin-off"
+                  when "requested_off"
+                    "small text-danger holiday-in-slot holiday-requested-off"
+                  when "paid_leave"
+                    "small text-danger holiday-in-slot holiday-paid-leave"
+                  else
+                    "small text-danger"
+                  end %>
+
+              <% if assigned %>
+                <div class="small shift-line"><%= s.last_name %></div>
+              <% else %>
+                <div class="<%= off_class %>"><%= s.last_name %><%= off_label %></div>
+              <% end %>
+            <% end %>
+          </div>
+        <% end %>
+      <% end %>
     </div>
 
     <div

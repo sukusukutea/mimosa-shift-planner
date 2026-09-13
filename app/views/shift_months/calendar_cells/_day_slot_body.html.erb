@@ -19,7 +19,9 @@
 <% editable_row_keys = %i[nurse care care_mgr cook clerk] %>
 <% if editable_row_keys.include?(row_key) && in_month %>
   <%# 介護/ケアマネ/調理/事務：固定順名簿で「勤務 or 休み」を表示 %>
-  <% staffs_for_row = sorted_staffs_for_row(staff_by_id: staff_by_id, row_key: row_key) %>
+  <% staffs_for_row =
+     sorted_staffs_for_row(staff_by_id: staff_by_id, row_key: row_key)
+       .reject { |s| row_key == :nurse && s.occupation&.name.to_s == "管理者" } %>
 
   <% assigned_kind_by_id = {} %>
   <% assigned_day_time_option_id_by_id = {} %>

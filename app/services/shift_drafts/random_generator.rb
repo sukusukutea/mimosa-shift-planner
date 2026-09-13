@@ -896,6 +896,7 @@ module ShiftDrafts
       return false unless staff.workday_constraint.to_s == "free"
       return false unless staff.can_day?
       return false unless enabled_map_on(date)[:day]
+      return false if skip_management_or_nurse_on_nurse_zero_day?(staff, date)
 
       sid = staff.id.to_i
 
@@ -910,6 +911,24 @@ module ShiftDrafts
 
       streak_after_add < max_days ||
         max_streak_reached_but_rest_is_already_safe?(staff, date)
+    end
+
+    def skip_management_or_nurse_on_nurse_zero_day?(staff, date)
+      return false unless nurse_required_zero_on?(date)
+
+      nurse_staff?(staff) || admin_staff?(staff)
+    end
+
+    def nurse_required_zero_on?(date)
+      @shift_month.required_counts_for(date, shift_kind: :day)[:nurse].to_i.zero?
+    end
+
+    def nurse_staff?(staff)
+      staff&.occupation&.name.to_s.include?("看護")
+    end
+
+    def admin_staff?(staff)
+      staff&.occupation&.name.to_s == "管理者"
     end
 
     def adjust_free_holiday_surpluses!(month_begin:, month_end:)

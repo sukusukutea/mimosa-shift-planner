@@ -67,206 +67,268 @@
   <% end %>
 <% else %>
   <div class="day-slots">
-    <div class="slot slot-day">
-    <% if row_key == :care && display_month_cell %>
-      <%# 介護だけ：固定順名簿で「勤務 or 休み」を表示 %>
-      <% care_staffs =
-          staff_by_id.values
-                      .select { |s| s && row_key_for(s) == :care }
-                      .sort_by do |s|
-                        [
-                          s.workday_constraint == "free" ? 0 : 1,
-                          s.last_name_kana.to_s,
-                          s.first_name_kana.to_s,
-                          s.id.to_i
-                        ]
-                      end %>
+    <div class="slot slot-day <%= "slot-day-with-admin" if row_key == :nurse && display_month_cell %>">
+      <div class="staff-lines-main">
+        <% if row_key == :care && display_month_cell %>
+          <%# 介護だけ：固定順名簿で「勤務 or 休み」を表示 %>
+          <% care_staffs =
+              staff_by_id.values
+                          .select { |s| s && row_key_for(s) == :care }
+                          .sort_by do |s|
+                            [
+                              s.workday_constraint == "free" ? 0 : 1,
+                              s.last_name_kana.to_s,
+                              s.first_name_kana.to_s,
+                              s.id.to_i
+                            ]
+                          end %>
 
-      <% assigned_kind_by_id = {} %>
-      <% assigned_day_time_option_id_by_id = {} %>
-      <% assigned_late_time_option_id_by_id = {} %>
+          <% assigned_kind_by_id = {} %>
+          <% assigned_day_time_option_id_by_id = {} %>
+          <% assigned_late_time_option_id_by_id = {} %>
 
-      <% { day: day_rows, early: early_rows, late: late_rows }.each do |kind_sym, rows| %>
-        <% Array(rows).each do |r| %>
-          <% sid = (r["staff_id"] || r[:staff_id]).to_i %>
-          <% next unless sid > 0 %>
+          <% { day: day_rows, early: early_rows, late: late_rows }.each do |kind_sym, rows| %>
+            <% Array(rows).each do |r| %>
+              <% sid = (r["staff_id"] || r[:staff_id]).to_i %>
+              <% next unless sid > 0 %>
 
-          <% assigned_kind_by_id[sid] = kind_sym %>
+              <% assigned_kind_by_id[sid] = kind_sym %>
 
-          <% if kind_sym == :day %>
-            <% opt_id = (r["staff_day_time_option_id"] || r[:staff_day_time_option_id]).to_i %>
-            <% assigned_day_time_option_id_by_id[sid] = (opt_id > 0 ? opt_id : nil) %>
-          <% elsif kind_sym == :late %>
-            <% late_opt_id = (r["shift_month_time_option_id"] || r[:shift_month_time_option_id]).to_i %>
-            <% assigned_late_time_option_id_by_id[sid] = (late_opt_id > 0 ? late_opt_id : nil) %>
+              <% if kind_sym == :day %>
+                <% opt_id = (r["staff_day_time_option_id"] || r[:staff_day_time_option_id]).to_i %>
+                <% assigned_day_time_option_id_by_id[sid] = (opt_id > 0 ? opt_id : nil) %>
+              <% elsif kind_sym == :late %>
+                <% late_opt_id = (r["shift_month_time_option_id"] || r[:shift_month_time_option_id]).to_i %>
+                <% assigned_late_time_option_id_by_id[sid] = (late_opt_id > 0 ? late_opt_id : nil) %>
+              <% end %>
+            <% end %>
           <% end %>
-        <% end %>
-      <% end %>
 
-      <% care_staffs.each do |s| %>
-        <% kind = assigned_kind_by_id[s.id] %>
-        <% if kind == :early %>
-          <div class="small shift-line"><%= s.last_name %><span class="shift-time">730-1630</span></div>
-        <% elsif kind == :late %>
-          <% late_option_id = assigned_late_time_option_id_by_id[s.id] %>
-          <% late_time_text = late_time_options_by_id[late_option_id]&.time_text.presence || shift_month.default_late_time_text %>
-          <div class="small shift-line"><%= s.last_name %><span class="shift-time"><%= late_time_text %></span></div>
-        <% elsif kind == :day %>
-          <% day_opts = Array(s.staff_day_time_options).select { |o| o.active? }.sort_by { |o| [o.position.to_i, o.id.to_i] } %>
-          <% ui_wday = ShiftMonth.ui_wday(date) %>
-          <% day_default =
-              day_opts.find { |o| Array(o.apply_wdays).map(&:to_i).include?(ui_wday) } ||
-              day_opts.find { |o| o.is_default? } ||
-              day_opts.first
-          %>
-          <% picked_id = assigned_day_time_option_id_by_id[s.id] || day_default&.id %>
-          <% picked = picked_id.present? ? day_opts.find { |o| o.id.to_i == picked_id.to_i } : nil %>
-          <% t = picked&.time_text.to_s %>
+          <% care_staffs.each do |s| %>
+            <% kind = assigned_kind_by_id[s.id] %>
+            <% if kind == :early %>
+              <div class="small shift-line"><%= s.last_name %><span class="shift-time">730-1630</span></div>
+            <% elsif kind == :late %>
+              <% late_option_id = assigned_late_time_option_id_by_id[s.id] %>
+              <% late_time_text = late_time_options_by_id[late_option_id]&.time_text.presence || shift_month.default_late_time_text %>
+              <div class="small shift-line"><%= s.last_name %><span class="shift-time"><%= late_time_text %></span></div>
+            <% elsif kind == :day %>
+              <% day_opts = Array(s.staff_day_time_options).select { |o| o.active? }.sort_by { |o| [o.position.to_i, o.id.to_i] } %>
+              <% ui_wday = ShiftMonth.ui_wday(date) %>
+              <% day_default =
+                  day_opts.find { |o| Array(o.apply_wdays).map(&:to_i).include?(ui_wday) } ||
+                  day_opts.find { |o| o.is_default? } ||
+                  day_opts.first
+              %>
+              <% picked_id = assigned_day_time_option_id_by_id[s.id] || day_default&.id %>
+              <% picked = picked_id.present? ? day_opts.find { |o| o.id.to_i == picked_id.to_i } : nil %>
+              <% t = picked&.time_text.to_s %>
 
-          <% if t.present? %>
-            <div class="small shift-line"><%= s.last_name %><span class="shift-time"><%= t %></span></div>
-          <% else %>
-            <div class="small"><%= s.last_name %></div>
+              <% if t.present? %>
+                <div class="small shift-line"><%= s.last_name %><span class="shift-time"><%= t %></span></div>
+              <% else %>
+                <div class="small"><%= s.last_name %></div>
+              <% end %>
+            <% else %>
+              <% carry_state = carry_over_state[s.id] %>
+              <% carry_in_kind = carry_state&.dig(:carry_in_kind)&.to_sym %>
+              <% carry_night_off_today = (date == month_begin && carry_in_kind == :night_off) %>
+
+              <% holiday_request =
+                  Array((holiday_requests_by_date || {})[date]).find { |request| request.staff_id.to_i == s.id.to_i } %>
+
+              <% label =
+                  case holiday_request&.holiday_type
+                  when "admin_off"
+                    "(休)"
+                  when "requested_off"
+                    "(希望休)"
+                  when "paid_leave"
+                    "(有休)"
+                  else
+                    "(休)"
+                  end %>
+
+              <% css_class =
+                  case holiday_request&.holiday_type
+                  when "admin_off"
+                    "small text-danger holiday-in-slot holiday-admin-off"
+                  when "requested_off"
+                    "small text-danger holiday-in-slot holiday-requested-off"
+                  when "paid_leave"
+                    "small text-danger holiday-in-slot holiday-paid-leave"
+                  else
+                    "small text-danger"
+                  end %>
+
+              <% if night_related_ids.include?(s.id.to_i) %>
+                <div class="small text-danger"><%= s.last_name %></div>
+              <% else %>
+                <div class="<%= css_class %>">
+                  <%= s.last_name %><%= label %>
+                </div>
+              <% end %>
+            <% end %>
           <% end %>
         <% else %>
-          <% carry_state = carry_over_state[s.id] %>
-          <% carry_in_kind = carry_state&.dig(:carry_in_kind)&.to_sym %>
-          <% carry_night_off_today = (date == month_begin && carry_in_kind == :night_off) %>
+          <%# 介護以外：現行の表示（割当のみ） %>
+          <% day_rows.each do |row| %>
+            <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
+            <% staff = staff_by_id[sid] %>
+            <% next if staff.nil? %>
+            <% next if staff.occupation&.name.to_s == "管理者" %>
+            <% next unless row_key_for(staff) == row_key %>
 
-          <% holiday_request =
-              Array((holiday_requests_by_date || {})[date]).find { |request| request.staff_id.to_i == s.id.to_i } %>
+            <% opt_id = (row["staff_day_time_option_id"] || row[:staff_day_time_option_id]).to_i %>
+            <% day_opts = Array(staff.staff_day_time_options).select { |o| o.active? }.sort_by { |o| [o.position.to_i, o.id.to_i] } %>
+            <% ui_wday = ShiftMonth.ui_wday(date) %>
+            <% day_default =
+                day_opts.find { |o| Array(o.apply_wdays).map(&:to_i).include?(ui_wday) } ||
+                day_opts.find { |o| o.is_default? } ||
+                day_opts.first
+            %>
+            <% picked_id = (opt_id > 0 ? opt_id : nil) || day_default&.id %>
+            <% picked = picked_id.present? ? day_opts.find { |o| o.id.to_i == picked_id.to_i } : nil %>
+            <% t = picked&.time_text.to_s %>
 
-          <% label =
-               case holiday_request&.holiday_type
-               when "admin_off"
-                 "(休)"
-               when "requested_off"
-                 "(希望休)"
-               when "paid_leave"
-                 "(有休)"
-               else
-                 "(休)"
-               end %>
+            <% if t.present? %>
+              <div class="small shift-line"><%= staff.last_name %><span class="shift-time"><%= t %></span></div>
+            <% else %>
+              <div class="small"><%= staff.last_name %></div>
+            <% end %>
+          <% end %>
 
-          <% css_class =
-               case holiday_request&.holiday_type
-               when "admin_off"
-                 "small text-danger holiday-in-slot holiday-admin-off"
-               when "requested_off"
-                 "small text-danger holiday-in-slot holiday-requested-off"
-               when "paid_leave"
-                 "small text-danger holiday-in-slot holiday-paid-leave"
-               else
-                 "small text-danger"
-               end %>
+          <%# --- 夜勤関連（夜勤入り/明け等）は日勤側に「赤字で名前だけ」出す（介護と同じ挙動）--- %>
+          <% displayed_ids = [] %>
 
-          <% if night_related_ids.include?(s.id.to_i) %>
-            <div class="small text-danger"><%= s.last_name %></div>
-          <% else %>
-            <div class="<%= css_class %>">
-              <%= s.last_name %><%= label %>
-            </div>
+          <% day_rows.each do |row| %>
+            <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
+            <% displayed_ids << sid if sid > 0 %>
+          <% end %>
+          <% early_rows.each do |row| %>
+            <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
+            <% displayed_ids << sid if sid > 0 %>
+          <% end %>
+          <% late_rows.each do |row| %>
+            <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
+            <% displayed_ids << sid if sid > 0 %>
+          <% end %>
+
+          <% Array(night_related_ids).each do |sid| %>
+            <% sid = sid.to_i %>
+            <% next if sid <= 0 %>
+            <% next if displayed_ids.include?(sid) %>
+
+            <% staff = staff_by_id[sid] %>
+            <% carry_state = carry_over_state[sid] %>
+            <% carry_in_kind = carry_state&.dig(:carry_in_kind)&.to_sym %>
+            <% next if staff.nil? %>
+            <% next if staff.respond_to?(:active?) && !staff.active? %>
+            <% next unless row_key_for(staff) == row_key %>
+
+            <div class="small text-danger"><%= staff.last_name %></div>
+          <% end %>
+
+          <%# 未割当(休み)表示：その月だけ %>
+          <% if display_month_cell %>
+            <% unassigned_staffs = (unassigned_display_staffs_by_date && unassigned_display_staffs_by_date[date]) || [] %>
+            <% unassigned_staffs.each do |staff| %>
+              <% next if staff.nil? || !staff.active? %>
+              <% next if staff.occupation&.name.to_s == "管理者" %>
+              <% next if night_related_ids.include?(staff.id.to_i) %>
+              <% next unless row_key_for(staff) == row_key %>
+
+              <div class="small text-danger">
+                <%= staff.last_name %>(休)
+              </div>
+            <% end %>
           <% end %>
         <% end %>
-      <% end %>
-    <% else %>
-      <%# 介護以外：現行の表示（割当のみ） %>
-      <% day_rows.each do |row| %>
-        <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
-        <% staff = staff_by_id[sid] %>
-        <% next if staff.nil? %>
-        <% next unless row_key_for(staff) == row_key %>
 
-        <% opt_id = (row["staff_day_time_option_id"] || row[:staff_day_time_option_id]).to_i %>
-        <% day_opts = Array(staff.staff_day_time_options).select { |o| o.active? }.sort_by { |o| [o.position.to_i, o.id.to_i] } %>
-        <% ui_wday = ShiftMonth.ui_wday(date) %>
-        <% day_default =
-            day_opts.find { |o| Array(o.apply_wdays).map(&:to_i).include?(ui_wday) } ||
-            day_opts.find { |o| o.is_default? } ||
-            day_opts.first
-        %>
-        <% picked_id = (opt_id > 0 ? opt_id : nil) || day_default&.id %>
-        <% picked = picked_id.present? ? day_opts.find { |o| o.id.to_i == picked_id.to_i } : nil %>
-        <% t = picked&.time_text.to_s %>
+        <% if !(row_key == :care && display_month_cell) %>
+          <% early_rows.each do |row| %>
+            <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
+            <% staff = staff_by_id[sid] %>
+            <% next if staff.nil? %>
+            <% next if staff.occupation&.name.to_s == "管理者" %>
+            <% if row_key_for(staff) == row_key %>
+              <div class="small shift-line">
+                <%= staff.last_name %><span class="shift-time">730-1630</span>
+              </div>
+            <% end %>
+          <% end %>
 
-        <% if t.present? %>
-          <div class="small shift-line"><%= staff.last_name %><span class="shift-time"><%= t %></span></div>
-        <% else %>
-          <div class="small"><%= staff.last_name %></div>
+          <% late_rows.each do |row| %>
+            <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
+            <% staff = staff_by_id[sid] %>
+            <% next if staff.nil? %>
+            <% next if staff.occupation&.name.to_s == "管理者" %>
+            <% if row_key_for(staff) == row_key %>
+              <% late_opt_id = (row["shift_month_time_option_id"] || row[:shift_month_time_option_id]).to_i %>
+              <% late_time_text = late_time_options_by_id[late_opt_id]&.time_text.presence || shift_month.default_late_time_text %>
+              <div class="small shift-line">
+                <%= staff.last_name %><span class="shift-time"><%= late_time_text %></span>
+              </div>
+            <% end %>
+          <% end %>
         <% end %>
-      <% end %>
+      </div>
 
-      <%# --- 夜勤関連（夜勤入り/明け等）は日勤側に「赤字で名前だけ」出す（介護と同じ挙動）--- %>
-      <% displayed_ids = [] %>
+      <% if row_key == :nurse && display_month_cell %>
+        <% admin_staffs =
+            staff_by_id.values
+                       .select { |s| s&.active? && s.occupation&.name.to_s == "管理者" }
+                       .sort_by do |s|
+                         [
+                           s.workday_constraint == "free" ? 0 : 1,
+                           s.last_name_kana.to_s,
+                           s.first_name_kana.to_s,
+                           s.id.to_i
+                         ]
+                       end %>
 
-      <% day_rows.each do |row| %>
-        <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
-        <% displayed_ids << sid if sid > 0 %>
-      <% end %>
-      <% early_rows.each do |row| %>
-        <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
-        <% displayed_ids << sid if sid > 0 %>
-      <% end %>
-      <% late_rows.each do |row| %>
-        <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
-        <% displayed_ids << sid if sid > 0 %>
-      <% end %>
+        <% if admin_staffs.any? %>
+          <div class="admin-staff-bottom">
+            <% admin_staffs.each do |s| %>
+              <% assigned =
+                  Array(day_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i } ||
+                  Array(early_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i } ||
+                  Array(late_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i } %>
 
-      <% Array(night_related_ids).each do |sid| %>
-        <% sid = sid.to_i %>
-        <% next if sid <= 0 %>
-        <% next if displayed_ids.include?(sid) %>
+              <% holiday_request =
+                  Array((holiday_requests_by_date || {})[date]).find { |request| request.staff_id.to_i == s.id.to_i } %>
 
-        <% staff = staff_by_id[sid] %>
-        <% carry_state = carry_over_state[sid] %>
-        <% carry_in_kind = carry_state&.dig(:carry_in_kind)&.to_sym %>
-        <% next if staff.nil? %>
-        <% next if staff.respond_to?(:active?) && !staff.active? %>
-        <% next unless row_key_for(staff) == row_key %>
+              <% off_label =
+                  case holiday_request&.holiday_type
+                  when "requested_off"
+                    "(希望休)"
+                  when "paid_leave"
+                    "(有休)"
+                  else
+                    "(休)"
+                  end %>
 
-        <div class="small text-danger"><%= staff.last_name %></div>
-      <% end %>
+              <% off_class =
+                  case holiday_request&.holiday_type
+                  when "admin_off"
+                    "small text-danger holiday-in-slot holiday-admin-off"
+                  when "requested_off"
+                    "small text-danger holiday-in-slot holiday-requested-off"
+                  when "paid_leave"
+                    "small text-danger holiday-in-slot holiday-paid-leave"
+                  else
+                    "small text-danger"
+                  end %>
 
-      <%# 未割当(休み)表示：その月だけ %>
-      <% if display_month_cell %>
-        <% unassigned_staffs = (unassigned_display_staffs_by_date && unassigned_display_staffs_by_date[date]) || [] %>
-        <% unassigned_staffs.each do |staff| %>
-          <% next if staff.nil? || !staff.active? %>
-          <% next if night_related_ids.include?(staff.id.to_i) %>
-          <% next unless row_key_for(staff) == row_key %>
-
-          <div class="small text-danger">
-            <%= staff.last_name %>(休)
+              <% if assigned %>
+                <div class="small shift-line"><%= s.last_name %></div>
+              <% else %>
+                <div class="<%= off_class %>"><%= s.last_name %><%= off_label %></div>
+              <% end %>
+            <% end %>
           </div>
         <% end %>
       <% end %>
-    <% end %>
-
-    <% if !(row_key == :care && display_month_cell) %>
-      <% early_rows.each do |row| %>
-        <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
-        <% staff = staff_by_id[sid] %>
-        <% next if staff.nil? %>
-        <% if row_key_for(staff) == row_key %>
-          <div class="small shift-line">
-            <%= staff.last_name %><span class="shift-time">730-1630</span>
-          </div>
-        <% end %>
-      <% end %>
-
-      <% late_rows.each do |row| %>
-        <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
-        <% staff = staff_by_id[sid] %>
-        <% next if staff.nil? %>
-        <% if row_key_for(staff) == row_key %>
-          <% late_opt_id = (row["shift_month_time_option_id"] || row[:shift_month_time_option_id]).to_i %>
-          <% late_time_text = late_time_options_by_id[late_opt_id]&.time_text.presence || shift_month.default_late_time_text %>
-          <div class="small shift-line">
-            <%= staff.last_name %><span class="shift-time"><%= late_time_text %></span>
-          </div>
-        <% end %>
-      <% end %>
-    <% end %>
     </div>
 
     <div class="slot slot-night">
