@@ -85,7 +85,8 @@
                 data: {
                   holiday_multi_select_target: "input",
                   min_date: @month_begin.iso8601,
-                  max_date: @month_end.iso8601
+                  max_date: @month_end.iso8601,
+                  selection_mode: (@selected_client_service_kind == "stay" ? "range" : "multiple")
                 },
                 autocomplete: "off" %>
         </div>

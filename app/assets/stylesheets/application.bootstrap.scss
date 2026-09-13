@@ -737,6 +737,12 @@ body.sidebar-left-collapsed #main-content {
   color: #fff;
 }
 
+.flatpickr-day.inRange {
+  background: #cfe2ff;
+  color: #000;
+  box-shadow: none;
+}
+
 .flatpickr-day.today {
   border: 1px solid #0d6efd;
 }
