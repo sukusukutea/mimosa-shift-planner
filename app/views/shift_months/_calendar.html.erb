@@ -85,15 +85,20 @@
             <% in_month = (date.month == shift_month.month) %>
             <% client_schedule = client_schedules_by_date[date] || {} %>
 
+            <% day_service_rows = Array(client_schedule["day_service"]) %>
+            <% stay_rows = Array(client_schedule["stay"]) %>
+            <% visit_rows = Array(client_schedule["visit"]) %>
+            <% has_stay = stay_rows.any? %>
+
             <td class="day-cell client-schedule-cell <%= in_month ? "" : "is-out is-show-out" %>">
               <div class="client-schedule-slots">
-                <div class="client-schedule-slot">
-                  <% names = Array(client_schedule["day_service"]) %>
-
-                  <% if names.any? %>
+                <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+                  <% if day_service_rows.any? %>
                     <div class="client-schedule-names">
-                      <% names.each do |name| %>
-                        <div class="client-schedule-name"><%= name %></div>
+                      <% day_service_rows.each do |row| %>
+                        <div class="client-schedule-name <%= row[:stay_start] ? "client-schedule-name-stay-start" : "" %>">
+                          <%= row[:name] %>
+                        </div>
                       <% end %>
                     </div>
                   <% else %>
@@ -101,13 +106,13 @@
                   <% end %>
                 </div>
 
-                <div class="client-schedule-slot">
-                  <% names = Array(client_schedule["stay"]) %>
-
-                  <% if names.any? %>
+                <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+                  <% if stay_rows.any? %>
                     <div class="client-schedule-names">
-                      <% names.each do |name| %>
-                        <div class="client-schedule-name"><%= name %></div>
+                      <% stay_rows.each do |row| %>
+                        <div class="client-schedule-name">
+                          <%= row[:name] %>
+                        </div>
                       <% end %>
                     </div>
                   <% else %>
@@ -115,13 +120,13 @@
                   <% end %>
                 </div>
 
-                <div class="client-schedule-slot">
-                  <% names = Array(client_schedule["visit"]) %>
-
-                  <% if names.any? %>
+                <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+                  <% if visit_rows.any? %>
                     <div class="client-schedule-names">
-                      <% names.each do |name| %>
-                        <div class="client-schedule-name"><%= name %></div>
+                      <% visit_rows.each do |row| %>
+                        <div class="client-schedule-name">
+                          <%= row[:name] %>
+                        </div>
                       <% end %>
                     </div>
                   <% else %>

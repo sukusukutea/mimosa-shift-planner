@@ -215,6 +215,15 @@
   text-overflow: ellipsis;
 }
 
+.client-schedule-name-stay-start {
+  color: #e67e22;
+  font-weight: 600;
+}
+
+.client-schedule-slot-stay-filled {
+  background-color: #ffd966;
+}
+
 .client-kinds {
   display: grid;
   grid-template-columns: 1.4fr 1.4fr 1fr;

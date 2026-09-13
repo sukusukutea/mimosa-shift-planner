@@ -29,6 +29,10 @@ Rails.application.routes.draw do
       patch :update_weekday_requirements
       post :sync_weekday_requirements
       post :sync_client_schedules
+
+      post :bulk_add_client_schedules
+      delete :remove_client_schedule
+
       patch :update_daily
 
       post :update_designation

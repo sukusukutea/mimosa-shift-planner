@@ -23,4 +23,5 @@ class ShiftMonthClientSchedule < ApplicationRecord
             }
 
   scope :ordered, -> { order(:date, :service_kind, :client_display_name, :id) }
+  scope :active, -> { where(active: true) }
 end
