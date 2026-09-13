@@ -1,0 +1,187 @@
+<div class="mb-3">
+  <p class="fw-bold small mb-2">利用者予定</p>
+
+  <% if @client_sidebar_clients.any? %>
+    <%= form_with url: settings_shift_month_path(@shift_month),
+                  method: :get,
+                  local: true do %>
+      <%= hidden_field_tag :side, "client" %>
+      <%= hidden_field_tag :client_service_kind, @selected_client_service_kind if @selected_client_service_kind.present? %>
+
+      <%= select_tag :client_id,
+            options_for_select(
+              @client_sidebar_clients.map { |client| [client.display_name, client.id] },
+              @selected_client&.id
+            ),
+            include_blank: "利用者を選択",
+            class: "form-select form-select-sm",
+            onchange: "this.form.requestSubmit()" %>
+    <% end %>
+  <% else %>
+    <div class="small text-muted border rounded bg-white px-2 py-2">
+      利用中の利用者が登録されていません。
+    </div>
+  <% end %>
+</div>
+
+<% if @selected_client.present? %>
+  <hr class="my-3">
+
+  <div class="mb-3">
+    <p class="fw-bold small mb-2">
+      予定種別：<%= @selected_client.display_name %>
+    </p>
+
+    <div class="d-flex flex-wrap gap-1">
+      <% [
+        ["泊まり", "stay"],
+        ["通い", "day_service"],
+        ["訪問", "visit"]
+      ].each do |label, value| %>
+        <% selected = @selected_client_service_kind == value %>
+
+        <%= link_to label,
+                    settings_shift_month_path(
+                      @shift_month,
+                      side: "client",
+                      client_id: @selected_client.id,
+                      client_service_kind: value
+                    ),
+                    class: "btn btn-sm #{selected ? "btn-secondary" : "btn-outline-secondary"}" %>
+      <% end %>
+    </div>
+  </div>
+
+  <% if @selected_client_service_kind.present? %>
+    <% service_label =
+      case @selected_client_service_kind
+      when "day_service"
+        "通い"
+      when "visit"
+        "訪問"
+      when "stay"
+        "泊まり"
+      else
+        "予定"
+      end %>
+
+    <div class="mt-3">
+      <div class="small fw-bold mb-2">
+        <%= service_label %>を追加
+      </div>
+
+      <%= form_with url: bulk_add_client_schedules_shift_month_path(@shift_month),
+                    method: :post,
+                    local: true,
+                    data: { controller: "holiday-multi-select" } do %>
+        <%= hidden_field_tag :side, "client" %>
+        <%= hidden_field_tag :client_id, @selected_client.id %>
+        <%= hidden_field_tag :client_service_kind, @selected_client_service_kind %>
+
+        <div class="holiday-picker-wrap">
+          <%= text_field_tag :client_schedule_picker,
+                "",
+                class: "d-none",
+                data: {
+                  holiday_multi_select_target: "input",
+                  min_date: @month_begin.iso8601,
+                  max_date: @month_end.iso8601,
+                  selection_mode: (@selected_client_service_kind == "stay" ? "range" : "multiple")
+                },
+                autocomplete: "off" %>
+        </div>
+
+        <div class="small mt-2">
+          選択中:
+          <span data-holiday-multi-select-target="summary">
+            未選択
+          </span>
+        </div>
+
+        <div class="d-flex justify-content-end mt-2">
+          <%= submit_tag(
+                @selected_client_service_kind == "stay" ? "期間を追加" : "まとめて追加",
+                class: "btn btn-sm btn-light border"
+              ) %>
+        </div>
+      <% end %>
+    </div>
+
+    <hr class="my-3">
+
+    <div class="mt-3">
+      <div class="small text-muted mb-1">登録済み</div>
+
+      <% if @selected_client_schedules.any? %>
+        <% wdays = %w[日 月 火 水 木 金 土] %>
+
+        <% if @selected_client_service_kind == "stay" %>
+          <% stay_ranges =
+              @selected_client_schedules
+                .to_a
+                .sort_by(&:date)
+                .chunk_while { |previous_schedule, next_schedule| next_schedule.date == previous_schedule.date + 1 }
+                .to_a %>
+
+          <ul class="list-unstyled small mb-0">
+            <% stay_ranges.each do |range_schedules| %>
+              <% start_date = range_schedules.first.date %>
+              <% end_date = range_schedules.last.date %>
+
+              <li class="d-flex justify-content-between align-items-center mb-1">
+                <span>
+                  <%= start_date.strftime("%-m/%-d") %>
+                  <span class="text-muted">(<%= wdays[start_date.wday] %>)</span>
+                  〜
+                  <%= end_date.strftime("%-m/%-d") %>
+                  <span class="text-muted">(<%= wdays[end_date.wday] %>)</span>
+                </span>
+
+                <%= button_to "削除",
+                              remove_client_schedule_shift_month_path(@shift_month),
+                              method: :delete,
+                              params: { schedule_ids: range_schedules.map(&:id) },
+                              class: "btn btn-sm btn-outline-danger py-0 px-2",
+                              form_class: "m-0" %>
+              </li>
+            <% end %>
+          </ul>
+        <% else %>
+          <ul class="list-unstyled small mb-0">
+            <% @selected_client_schedules.each do |schedule| %>
+              <li class="d-flex justify-content-between align-items-center mb-1">
+                <span>
+                  <%= schedule.date.strftime("%-m/%-d") %>
+                  <span class="text-muted">(<%= wdays[schedule.date.wday] %>)</span>
+
+                  <% if schedule.source == "regular" %>
+                    <span class="text-muted ms-1">基本曜日</span>
+                  <% else %>
+                    <span class="text-muted ms-1">個別登録</span>
+                  <% end %>
+                </span>
+
+                <%= button_to "削除",
+                              remove_client_schedule_shift_month_path(
+                                @shift_month,
+                                schedule_id: schedule.id
+                              ),
+                              method: :delete,
+                              class: "btn btn-sm btn-outline-danger py-0 px-2",
+                              form_class: "m-0" %>
+              </li>
+            <% end %>
+          </ul>
+        <% end %>
+      <% else %>
+        <div class="small text-muted">
+          まだ登録がありません
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="small text-muted">
+      泊まり・通い・訪問のいずれかを選択してください。
+    </div>
+  <% end %>
+<% end %>

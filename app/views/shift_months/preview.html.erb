@@ -1,26 +1,50 @@
 <% toolbar = capture do %>
+  <%
+    carry_params = {}
+    carry_params[:hide_client_sync_notice] = "1" if params[:hide_client_sync_notice] == "1"
+
+    edit_draft_path = edit_draft_shift_month_path(@shift_month, carry_params)
+  %>
+
   <div class="d-flex align-items-center gap-2 mb-1"
        data-controller="left-sidebar unsaved-guard"
        data-unsaved-guard-dirty-value="true"
-       data-unsaved-guard-allow-urls-value="<%= edit_draft_shift_month_path(@shift_month) %>">
+       data-unsaved-guard-allow-urls-value="<%= edit_draft_path %>">
     <button type="button"
             class="btn btn-sm btn-outline-secondary"
             data-action="left-sidebar#toggle">
       <i class="bi bi-layout-sidebar-inset"></i>
     </button>
 
-    <%= link_to "戻る", settings_shift_month_path(@shift_month), class:"btn btn-sm btn-light border" %>
-    <%= link_to "手修正する", edit_draft_shift_month_path(@shift_month), class: "btn btn-sm btn-primary" %>
+    <%= link_to "戻る",
+                settings_shift_month_path(@shift_month, carry_params),
+                class: "btn btn-sm btn-light border" %>
+
+    <%= link_to "手修正する",
+                edit_draft_path,
+                class: "btn btn-sm btn-primary" %>
+
     <%= button_to "保存して終了",
           confirm_draft_shift_month_path(@shift_month),
           method: :post,
           class: "btn btn-sm btn-secondary",
           data: { action: "click->unsaved-guard#markClean" } %>
+
     <%= button_to "再生成",
                   generate_draft_shift_month_path(@shift_month),
                   method: :post,
+                  params: carry_params,
                   class: "btn btn-sm btn-success",
                   data: { turbo_confirm: "現在のシフト案を破棄して、再生成します。よろしいですか？" } %>
+
+    <div class="fw-bold ms-auto">
+      今月の休日数：
+      <% if @shift_month.holiday_days.present? %>
+        <span class="text-danger"><%= @shift_month.holiday_days %>日</span>
+      <% else %>
+        <span class="text-muted">未設定</span>
+      <% end %>
+    </div>
   </div>
 <% end %>
 

@@ -192,13 +192,24 @@ module ShiftDrafts
 
           while Array(day_hash[kind]).size < limit
             forced_off_ids_now = forced_off_staff_ids_on(date)
-            exclude_for_normal = assigned_today.to_a + holiday_ids + forced_off_ids_now
+
+            holiday_ids_for_kind =
+              if kind == :night
+                holiday_ids_for_night_entry(date)
+              else
+                holiday_ids
+              end
+
+            exclude_for_normal = assigned_today.to_a + holiday_ids_for_kind + forced_off_ids_now
 
             staff = pick_staff_for(kind, exclude_ids: exclude_for_normal, date: date)
 
             # 夜勤候補が0なら「夜勤2連続」を例外で許可
             if staff.nil? && kind == :night
-              staff = pick_staff_for_double_night(date: date, exclude_ids: assigned_today.to_a + holiday_ids)
+              staff = pick_staff_for_double_night(
+                date: date,
+                exclude_ids: assigned_today.to_a + holiday_ids_for_night_entry(date)
+              )
             end
 
             break if staff.nil?
@@ -642,6 +653,15 @@ module ShiftDrafts
         .keys
     end
 
+    def holiday_ids_for_night_entry(date)
+      ids = Array(@holiday_ids_by_date[date])
+
+      next_date = date + 1
+      ids += Array(@holiday_ids_by_date[next_date]) if @dates.include?(next_date)
+
+      ids.map(&:to_i).uniq
+    end    
+
     def apply_carry_over_forced_offs!(month_begin:)
       return if @carry_over_state.blank?
 
@@ -896,6 +916,7 @@ module ShiftDrafts
       return false unless staff.workday_constraint.to_s == "free"
       return false unless staff.can_day?
       return false unless enabled_map_on(date)[:day]
+      return false if skip_management_or_nurse_on_nurse_zero_day?(staff, date)
 
       sid = staff.id.to_i
 
@@ -910,6 +931,24 @@ module ShiftDrafts
 
       streak_after_add < max_days ||
         max_streak_reached_but_rest_is_already_safe?(staff, date)
+    end
+
+    def skip_management_or_nurse_on_nurse_zero_day?(staff, date)
+      return false unless nurse_required_zero_on?(date)
+
+      nurse_staff?(staff) || admin_staff?(staff)
+    end
+
+    def nurse_required_zero_on?(date)
+      @shift_month.required_counts_for(date, shift_kind: :day)[:nurse].to_i.zero?
+    end
+
+    def nurse_staff?(staff)
+      staff&.occupation&.name.to_s.include?("看護")
+    end
+
+    def admin_staff?(staff)
+      staff&.occupation&.name.to_s == "管理者"
     end
 
     def adjust_free_holiday_surpluses!(month_begin:, month_end:)

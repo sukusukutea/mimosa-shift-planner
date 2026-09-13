@@ -8,12 +8,21 @@
       <i class="bi bi-layout-sidebar-inset"></i>
     </button>
 
-    <%= link_to "戻る", settings_shift_month_path(@shift_month), class:"btn btn-sm btn-light border" %>
+    <%= link_to "戻る", preview_shift_month_path(@shift_month), class:"btn btn-sm btn-light border" %>
     <%= button_to "保存して終了",
           confirm_draft_shift_month_path(@shift_month),
           method: :post,
           class: "btn btn-sm btn-secondary",
           data: { action: "click->unsaved-guard#markClean" } %>
+
+    <div class="fw-bold ms-auto">
+      今月の休日数：
+      <% if @shift_month.holiday_days.present? %>
+        <span class="text-danger"><%= @shift_month.holiday_days %>日</span>
+      <% else %>
+        <span class="text-muted">未設定</span>
+      <% end %>
+    </div>
   </div>
 <% end %>
 

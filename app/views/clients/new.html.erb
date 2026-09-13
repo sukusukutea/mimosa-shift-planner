@@ -1,0 +1,15 @@
+<div class="container-fluid">
+  <div class="row min-vh-100 flex-nowrap">
+    <div class="p-0 flex-shrink-0" style="width: 200px; background-color:#e6f0f0;">
+      <%= render "layouts/sidebar" %>
+    </div>
+
+    <div class="col-md-9 col-lg-10 py-4">
+      <div class="mx-auto" style="width: 60%; min-width: 500px;">
+        <h1 class="h4 fw-bold mb-4">利用者登録</h1>
+
+        <%= render "form", client: @client, submit_label: "登録する" %>
+      </div>
+    </div>
+  </div>
+</div>

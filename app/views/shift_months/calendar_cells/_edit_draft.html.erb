@@ -57,7 +57,10 @@
   </div>
 <% else %>
   <div class="day-slots">
-    <div id="day-slot-<%= row_key %>-<%= date.iso8601 %>" class="slot slot-day">
+    <div
+      id="day-slot-<%= row_key %>-<%= date.iso8601 %>"
+      class="slot slot-day <%= "slot-day-with-admin" if row_key == :nurse && in_month %>"
+    >
       <%= render "shift_months/calendar_cells/day_slot_body",
         date: date,
         in_month: in_month,

@@ -8,34 +8,91 @@
         "holiday"
       end %>
 
-<div class="h-100 d-flex flex-column" style="background-color: #e6f0f0;">
-  <!-- 切り替えボタン -->
-  <div class="d-flex justify-content-around px-1 py-1 border-bottom">
-    <button class="btn btn-outline-secondary btn-sm w-100 <%= active_tab == "holiday" ? "active" : "" %>"
-            id="btn-holiday" onclick="showTab('holiday')">休日設定</button>
-    <button class="btn btn-outline-secondary btn-sm w-100 <%= active_tab == "daily" ? "active" : "" %>"
-            id="btn-daily" onclick="showTab('daily')">日別調整</button>
-    <button class="btn btn-outline-secondary btn-sm w-100 <%= active_tab == "month" ? "active" : "" %>"
-            id="btn-month" onclick="showTab('month')">月設定</button>
+<% active_side =
+      case params[:side]
+      when "client"
+        "client"
+      else
+        "staff"
+      end %>
+
+<div class="d-flex flex-column" style="background-color: #e6f0f0; min-height: 100%;">
+  <!-- 職員 / 利用者 切り替え -->
+  <div class="d-flex gap-1 px-1 py-1 border-bottom" style="background-color:#d8eaea;">
+    <button type="button"
+            class="btn btn-outline-secondary btn-sm w-100 <%= active_side == "staff" ? "active" : "" %>"
+            id="btn-side-staff"
+            onclick="showSidePanel('staff')">
+      職員
+    </button>
+
+    <button type="button"
+            class="btn btn-outline-secondary btn-sm w-100 <%= active_side == "client" ? "active" : "" %>"
+            id="btn-side-client"
+            onclick="showSidePanel('client')">
+      利用者
+    </button>
   </div>
 
-  <!-- コンテンツ -->
-  <div class="flex-grow-1 px-3 pt-3" id="tab-content-area">
-    <div id="tab-holiday" style="<%= active_tab == "holiday" ? "" : "display:none;" %>">
-      <%= render "shift_months/right_sidebar_holiday" %>
+  <!-- 職員側 -->
+  <div id="side-staff"
+       class="h-100 flex-column"
+       style="<%= active_side == "staff" ? "display:flex;" : "display:none;" %>">
+    <div class="d-flex justify-content-around px-1 py-1 border-bottom">
+      <button type="button"
+              class="btn btn-outline-secondary btn-sm w-100 <%= active_tab == "holiday" ? "active" : "" %>"
+              id="btn-holiday"
+              onclick="showTab('holiday')">
+        休日設定
+      </button>
+
+      <button type="button"
+              class="btn btn-outline-secondary btn-sm w-100 <%= active_tab == "daily" ? "active" : "" %>"
+              id="btn-daily"
+              onclick="showTab('daily')">
+        日別調整
+      </button>
+
+      <button type="button"
+              class="btn btn-outline-secondary btn-sm w-100 <%= active_tab == "month" ? "active" : "" %>"
+              id="btn-month"
+              onclick="showTab('month')">
+        月設定
+      </button>
     </div>
 
-    <div id="tab-daily" style="<%= active_tab == "daily" ? "" : "display: none;" %>">
-      <%= render "shift_months/right_sidebar_daily" %>
-    </div>
+    <div class="flex-grow-1 px-3 pt-3" id="tab-content-area">
+      <div id="tab-holiday" style="<%= active_tab == "holiday" ? "" : "display:none;" %>">
+        <%= render "shift_months/right_sidebar_holiday" %>
+      </div>
 
-    <div id="tab-month" style="<%= active_tab == "month" ? "" : "display:none;" %>">
-      <%= render "shift_months/right_sidebar_month" %>
+      <div id="tab-daily" style="<%= active_tab == "daily" ? "" : "display:none;" %>">
+        <%= render "shift_months/right_sidebar_daily" %>
+      </div>
+
+      <div id="tab-month" style="<%= active_tab == "month" ? "" : "display:none;" %>">
+        <%= render "shift_months/right_sidebar_month" %>
+      </div>
     </div>
+  </div>
+
+  <!-- 利用者側 -->
+  <div id="side-client"
+       class="flex-grow-1 px-3 pt-3"
+       style="<%= active_side == "client" ? "display:block;" : "display:none;" %>">
+    <%= render "shift_months/right_sidebar_client" %>
   </div>
 </div>
 
 <script>
+  function showSidePanel(sideName) {
+    document.getElementById("side-staff").style.display = sideName === "staff" ? "flex" : "none";
+    document.getElementById("side-client").style.display = sideName === "client" ? "block" : "none";
+
+    document.getElementById("btn-side-staff").classList.toggle("active", sideName === "staff");
+    document.getElementById("btn-side-client").classList.toggle("active", sideName === "client");
+  }
+
   function showTab(tabName) {
     document.getElementById("tab-holiday").style.display = tabName === "holiday" ? "block" : "none";
     document.getElementById("tab-daily").style.display = tabName === "daily" ? "block" : "none";
@@ -52,7 +109,11 @@
     const toggle = document.getElementById("toggle-late");
     const box = document.getElementById("late-slots-box");
     if (!toggle || !box) return;
-    const sync = () => { box.style.display = toggle.checked ? "block" : "none"; };
+
+    const sync = () => {
+      box.style.display = toggle.checked ? "block" : "none";
+    };
+
     toggle.addEventListener("change", sync);
     sync();
   });

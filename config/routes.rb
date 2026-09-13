@@ -14,6 +14,13 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :clients, only: [ :index, :new, :create, :edit, :update, :destroy ] do
+    member do
+      patch :pause
+      patch :restore
+    end
+  end
+
   resources :shift_months, only: [ :new, :create, :destroy, :show ] do
     member do
       get :settings             # /shift_months/:id/settings
@@ -21,6 +28,11 @@ Rails.application.routes.draw do
 
       patch :update_weekday_requirements
       post :sync_weekday_requirements
+      post :sync_client_schedules
+
+      post :bulk_add_client_schedules
+      delete :remove_client_schedule
+
       patch :update_daily
 
       post :update_designation

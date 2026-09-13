@@ -1,5 +1,9 @@
 <% staffs_index_active = current_page?(staffs_path) %>
 <% staffs_new_active   = current_page?(new_staff_path) %>
+
+<% clients_index_active = current_page?(clients_path) %>
+<% clients_new_active   = current_page?(new_client_path) %>
+
 <% weekday_req_active = current_page?(base_weekday_requirements_path) ||
                         current_page?(edit_base_weekday_requirements_path) %>
 
@@ -17,11 +21,30 @@
                     style: "border:1px solid #97cdf3; width:auto; " +
                           (staffs_index_active ? "background-color:#97cdf3; color:#fff;" : "background-color:#ffffff; color:#333;") %>
 
-        <%= link_to "職員新規登録",
+        <%= link_to "職員登録",
                     new_staff_path,
                     class: "btn btn-outline-secondary btn-sm text-start px-3 d-inline-block",
                     style: "border:1px solid #97cdf3; " +
                           (staffs_new_active ? "background-color:#97cdf3; color:#fff;" : "background-color:#ffffff; color:#333;") %>
+      </div>
+    </div>
+
+    <div class="px-3 py-1 rounded fw-bold text-dark mt-3"
+         style="background-color: #ffffff;">
+      利用者管理
+
+      <div class="d-flex flex-column gap-2 mb-2 mt-2 align-items-start">
+        <%= link_to "利用者一覧",
+                    clients_path,
+                    class: "btn btn-outline-secondary btn-sm text-start px-3 d-inline-block",
+                    style: "border:1px solid #97cdf3; width:auto; " +
+                          (clients_index_active ? "background-color:#97cdf3; color:#fff;" : "background-color:#ffffff; color:#333;") %>
+
+        <%= link_to "利用者登録",
+                    new_client_path,
+                    class: "btn btn-outline-secondary btn-sm text-start px-3 d-inline-block",
+                    style: "border:1px solid #97cdf3; " +
+                          (clients_new_active ? "background-color:#97cdf3; color:#fff;" : "background-color:#ffffff; color:#333;") %>
       </div>
     </div>
 

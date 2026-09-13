@@ -16,6 +16,7 @@
 <% saved                            = local_assigns.fetch(:saved, nil) %>
 <% alerts_by_date                   = local_assigns.fetch(:alerts_by_date, nil) %>
 <% overstaffing_by_date             = local_assigns.fetch(:overstaffing_by_date, {}) || {} %>
+<% client_schedules_by_date         = local_assigns.fetch(:client_schedules_by_date, @client_schedules_by_date || {}) || {} %>
 <% designations_by_date             = local_assigns.fetch(:designations_by_date, {}) || {} %>
 <% holiday_requests_by_date         = local_assigns.fetch(:holiday_requests_by_date, nil) %>
 <% unassigned_display_staffs_by_date = local_assigns.fetch(:unassigned_display_staffs_by_date, nil) %>
@@ -67,6 +68,86 @@
                 <% end %>
               </div>
 
+              <div class="client-kinds">
+                <div class="kcell">通い</div>
+                <div class="kcell">泊まり</div>
+                <div class="kcell">訪問</div>
+              </div>
+            </td>
+          <% end %>
+        </tr>
+
+        <%# 利用者予定行：第1段階では空枠だけ表示 %>
+        <tr class="client-schedule-row">
+          <th class="occ-name">利用者</th>
+
+          <% week.each do |date| %>
+            <% in_month = (date.month == shift_month.month) %>
+            <% client_schedule = client_schedules_by_date[date] || {} %>
+
+            <% day_service_rows = Array(client_schedule["day_service"]) %>
+            <% stay_rows = Array(client_schedule["stay"]) %>
+            <% visit_rows = Array(client_schedule["visit"]) %>
+            <% has_stay = stay_rows.any? %>
+
+            <td class="day-cell client-schedule-cell <%= in_month ? "" : "is-out is-show-out" %>">
+              <div class="client-schedule-slots">
+                <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+                  <% if day_service_rows.any? %>
+                    <div class="client-schedule-names">
+                      <% day_service_rows.each do |row| %>
+                        <div class="client-schedule-name <%= row[:stay_start] ? "client-schedule-name-stay-start" : "" %>">
+                          <%= row[:name] %>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <div class="client-schedule-empty">-</div>
+                  <% end %>
+                </div>
+
+                <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+                  <% if stay_rows.any? %>
+                    <div class="client-schedule-names">
+                      <% stay_rows.each do |row| %>
+                        <div class="client-schedule-name">
+                          <%= row[:name] %>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <div class="client-schedule-empty">-</div>
+                  <% end %>
+                </div>
+
+                <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+                  <% if visit_rows.any? %>
+                    <div class="client-schedule-names">
+                      <% visit_rows.each do |row| %>
+                        <div class="client-schedule-name">
+                          <%= row[:name] %>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% else %>
+                    <div class="client-schedule-empty">-</div>
+                  <% end %>
+                </div>
+              </div>
+            </td>
+          <% end %>
+        </tr>
+
+        <%# 勤務見出し行 %>
+        <tr class="work-kind-row">
+          <th class="occ-name"></th>
+
+          <% week.each_with_index do |date, i| %>
+            <% in_month = (date.month == shift_month.month) %>
+            <% night_on = night_enabled_by_date[date] %>
+            <% day_on   = day_effective_by_date[date] %>
+
+            <td class="day-head work-kind-cell <%= in_month ? "" : "is-out" %>">
               <div class="day-kinds">
                 <div class="kcell <%= day_on ? "" : "is-disabled" %>">日勤</div>
                 <div class="kcell <%= night_on ? "is-night-on" : "is-disabled" %>">夜勤</div>

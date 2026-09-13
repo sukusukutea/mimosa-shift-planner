@@ -1,26 +1,63 @@
 <% toolbar = capture do %>
-  <% if params[:stale_weekday_req].to_s == "1" %>
-    <div class="alert alert-warning py-2 px-3 mb-3">
-      <div class="d-flex flex-wrap align-items-center gap-2">
-        <div>
-          <strong>曜日別人員配置の元設定が更新されています。</strong><br>
-          この月は古い曜日別設定で作成されています。同期しますか？<br>
-          <span class="small text-muted">
-            ※このシフトですでに設定済みの休日設定・日別調整は、そのまま残ります。
-          </span>
-        </div>
+  <% if params[:stale_weekday_req] == "1" %>
+    <div class="alert alert-warning border-warning mb-3">
+      <div class="fw-bold mb-2">
+        曜日別人員配置に変更があります
+      </div>
 
-        <div class="ms-auto d-flex gap-2">
-          <%= link_to "この月はそのまま",
-                      settings_shift_month_path(@shift_month),
-                      class: "btn btn-sm btn-outline-secondary" %>
+      <div class="small mb-3">
+        元設定の曜日別人員配置と、この月に保存されている曜日別人員配置に違いがあります。<br>
+        この月の曜日別人員配置を元設定に同期しますか？
+      </div>
 
-          <%= button_to "人員配置を同期する",
-                        sync_weekday_requirements_shift_month_path(@shift_month),
-                        method: :post,
-                        class: "btn btn-sm btn-warning",
-                        form_class: "d-inline" %>
-        </div>
+      <div class="small text-muted mb-3">
+        ※この月ですでに日別に調整した人員設定は保持されます。
+      </div>
+
+      <div class="d-flex gap-2">
+        <%= button_to "同期する",
+                      sync_weekday_requirements_shift_month_path(@shift_month),
+                      method: :post,
+                      class: "btn btn-warning btn-sm",
+                      form_class: "d-inline m-0" %>
+
+        <%= link_to "同期しない",
+                    settings_shift_month_path(@shift_month),
+                    class: "btn btn-outline-secondary btn-sm" %>
+      </div>
+    </div>
+  <% end %>
+
+  <% if @client_schedule_sync_status&.sync_required? && params[:hide_client_sync_notice] != "1" %>
+    <div class="alert alert-warning border-warning mb-3">
+      <div class="fw-bold mb-2">
+        利用者情報に変更があります
+      </div>
+
+      <div class="small mb-3">
+        利用者登録側の内容と、この月に保存されている利用者予定に違いがあります。<br>
+        この月の利用者予定を同期しますか？
+      </div>
+
+      <div class="small text-muted mb-3">
+        ※この月内ですでに日別に登録した利用者情報は保持されます。
+      </div>
+
+      <div class="d-flex gap-2">
+        <%= button_to "同期する",
+                      sync_client_schedules_shift_month_path(@shift_month),
+                      method: :post,
+                      class: "btn btn-warning btn-sm",
+                      form_class: "d-inline m-0" %>
+
+        <%= link_to "同期しない",
+                    settings_shift_month_path(
+                      @shift_month,
+                      tab: params[:tab],
+                      date: params[:date],
+                      hide_client_sync_notice: "1"
+                    ),
+                    class: "btn btn-outline-secondary btn-sm" %>
       </div>
     </div>
   <% end %>
@@ -32,13 +69,19 @@
       <i class="bi bi-layout-sidebar-inset"></i>
     </button>
 
+    <%
+      generate_draft_params = {}
+      generate_draft_params[:hide_client_sync_notice] = "1" if params[:hide_client_sync_notice] == "1"
+    %>
+
     <%= button_to "シフト案を作成",
                   generate_draft_shift_month_path(@shift_month),
                   method: :post,
+                  params: generate_draft_params,
                   class: "btn btn-sm btn-secondary" %>
 
     <div class="fw-bold ms-auto">
-      今月の休日日数：
+      今月の休日数：
       <% if @shift_month.holiday_days.present? %>
         <span class="text-danger"><%= @shift_month.holiday_days %>日</span>
       <% else %>

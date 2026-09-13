@@ -8,27 +8,30 @@ export default class extends Controller {
   connect() {
     if (!this.hasInputTarget) return
 
+    this.selectionMode = this.inputTarget.dataset.selectionMode || "multiple"
+
     const presetDates = this.hiddenDatesTargets.map((input) => input.value)
 
     try {
-        this.picker = flatpickr(this.inputTarget, {
-          mode: "multiple",
-          inline: true,
-          dateFormat: "Y-m-d",
-          defaultDate: presetDates,
-          minDate: this.inputTarget.dataset.minDate,
-          maxDate: this.inputTarget.dataset.maxDate,
-          locale: {
-            ...Japanese,
-            firstDayOfWeek: 1
-          },
-          clickOpens: true,
-          allowInput: false,
-          onChange: this.handleChange.bind(this)
-        })
+      this.picker = flatpickr(this.inputTarget, {
+        mode: this.selectionMode,
+        inline: true,
+        dateFormat: "Y-m-d",
+        defaultDate: presetDates,
+        minDate: this.inputTarget.dataset.minDate,
+        maxDate: this.inputTarget.dataset.maxDate,
+        locale: {
+          ...Japanese,
+          firstDayOfWeek: 1
+        },
+        clickOpens: true,
+        allowInput: false,
+        onChange: this.handleChange.bind(this)
+      })
 
-        this.renderSummary(presetDates)
-      } catch (e) {
+      this.renderSummary(presetDates)
+    } catch (e) {
+      console.error(e)
     }
   }
 
@@ -46,10 +49,39 @@ export default class extends Controller {
     this.picker.open()
   }
 
-  handleChange(_selectedDates, _dateStr, instance) {
-    const dates = instance.selectedDates.map((d) => instance.formatDate(d, "Y-m-d"))
+  handleChange(selectedDates, _dateStr, instance) {
+    const dates =
+      this.selectionMode === "range"
+        ? this.datesInRange(selectedDates, instance)
+        : selectedDates.map((date) => instance.formatDate(date, "Y-m-d"))
+
     this.syncHiddenInputs(dates)
     this.renderSummary(dates)
+  }
+
+  datesInRange(selectedDates, instance) {
+    if (selectedDates.length === 0) return []
+
+    if (selectedDates.length === 1) {
+      return [instance.formatDate(selectedDates[0], "Y-m-d")]
+    }
+
+    const startDate = new Date(selectedDates[0])
+    const endDate = new Date(selectedDates[1])
+
+    if (endDate < startDate) {
+      return []
+    }
+
+    const dates = []
+    const currentDate = new Date(startDate)
+
+    while (currentDate <= endDate) {
+      dates.push(instance.formatDate(currentDate, "Y-m-d"))
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+
+    return dates
   }
 
   syncHiddenInputs(dates) {
@@ -73,11 +105,21 @@ export default class extends Controller {
       return
     }
 
+    if (this.selectionMode === "range" && dates.length >= 2) {
+      this.summaryTarget.textContent = `${this.formatShortDate(dates[0])}〜${this.formatShortDate(dates[dates.length - 1])}`
+      return
+    }
+
     this.summaryTarget.textContent = dates
-      .map((date) => {
-        const [_, m, d] = date.split("-")
-        return `${Number(m)}/${Number(d)}`
-      })
+      .map((date) => this.formatShortDate(date))
       .join("、")
+  }
+
+  formatShortDate(date) {
+    const parts = date.split("-")
+    const month = Number(parts[1])
+    const day = Number(parts[2])
+
+    return `${month}/${day}`
   }
 }

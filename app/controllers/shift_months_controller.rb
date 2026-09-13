@@ -5,8 +5,11 @@ class ShiftMonthsController < ApplicationController
                                         :generate_draft, :preview, :edit_draft, :confirm_draft, :show, :bulk_add_staff_holidays,
                                         :remove_staff_holiday, :update_weekday_requirements, :update_designation,
                                         :remove_designation, :update_draft_assignment, :start_edit_from_confirmed,
-                                        :export_excel, :sync_weekday_requirements, :add_month_time_option,
-                                        :set_default_month_time_option, :remove_month_time_option ]
+                                        :export_excel, :sync_weekday_requirements, :sync_client_schedules, :add_month_time_option,
+                                        :set_default_month_time_option, :remove_month_time_option,
+                                        :bulk_add_client_schedules, :remove_client_schedule ]
+  before_action :ensure_month_client_schedules!, only: [ :settings ]
+  before_action :check_month_client_schedule_sync_status!, only: [ :settings ]
   before_action :build_calendar_vars, only: [ :settings, :preview, :edit_draft, :show ]
 
   def new
@@ -159,6 +162,7 @@ class ShiftMonthsController < ApplicationController
     prepare_holiday_tab_vars
     ensure_default_late_time_option!
     prepare_month_tab_vars
+    prepare_client_sidebar_vars
     @carry_over_state = build_carry_over_state(shift_month: @shift_month)
     @carry_over_source_assignments = previous_month_confirmed_assignments_for_carry_over(shift_month: @shift_month, days: 7).to_a
     @previous_month_assignments_for_display =
@@ -682,7 +686,11 @@ end
     end
 
     session[draft_token_session_key] = token
-    redirect_to preview_shift_month_path(@shift_month), notice: "シフト案を作成しました。"
+
+    preview_params = {}
+    preview_params[:hide_client_sync_notice] = "1" if params[:hide_client_sync_notice] == "1"
+
+    redirect_to preview_shift_month_path(@shift_month, preview_params), notice: "シフト案を作成しました。"
   rescue ArgumentError
     redirect_to settings_shift_month_path(@shift_month), alert: "日付形式が不正です。"
   end
@@ -1208,6 +1216,120 @@ end
               notice: "曜日別人員配置（元設定）をこの月に同期しました。"
   end
 
+  def sync_client_schedules
+    ShiftMonthClientSchedules::Synchronizer.new(shift_month: @shift_month).call
+
+    redirect_to settings_shift_month_path(@shift_month),
+                notice: "利用者予定をこの月に同期しました。"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to settings_shift_month_path(@shift_month),
+                alert: "利用者予定の同期に失敗しました：#{e.record.errors.full_messages.join(", ")}"
+  end
+
+  def bulk_add_client_schedules
+    client = current_user.clients.active.find(params[:client_id])
+    service_kind = params[:client_service_kind].to_s
+
+    unless %w[day_service visit stay].include?(service_kind)
+      redirect_to settings_shift_month_path(@shift_month, side: "client", client_id: client.id),
+                  alert: "予定種別が不正です。"
+      return
+    end
+
+    dates = Array(params[:dates]).filter_map do |date_string|
+      Date.iso8601(date_string)
+    rescue ArgumentError
+      nil
+    end
+
+    month_begin = Date.new(@shift_month.year, @shift_month.month, 1)
+    month_end = month_begin.end_of_month
+    dates = dates.select { |date| date.between?(month_begin, month_end) }.uniq.sort
+
+    if service_kind == "stay" && !consecutive_dates?(dates)
+      redirect_to settings_shift_month_path(
+        @shift_month,
+        side: "client",
+        client_id: client.id,
+        client_service_kind: service_kind
+      ), alert: "泊まりは、連続した日付を2日以上選択してください。"
+      return
+    end
+
+    if dates.blank?
+      redirect_to settings_shift_month_path(
+        @shift_month,
+        side: "client",
+        client_id: client.id,
+        client_service_kind: service_kind
+      ), alert: "日付を選択してください。"
+      return
+    end
+
+    ActiveRecord::Base.transaction do
+      dates.each do |date|
+        schedule = @shift_month.shift_month_client_schedules.find_or_initialize_by(
+          client: client,
+          date: date,
+          service_kind: service_kind
+        )
+
+        next if schedule.persisted? && schedule.active?
+
+        schedule.source = :manual
+        schedule.client_display_name = client.display_name
+        schedule.active = true
+        schedule.save!
+      end
+    end
+
+    redirect_to settings_shift_month_path(
+      @shift_month,
+      side: "client",
+      client_id: client.id,
+      client_service_kind: service_kind
+    ), notice: "利用者予定を追加しました。"
+  rescue ActiveRecord::RecordNotFound
+    redirect_to settings_shift_month_path(@shift_month, side: "client"),
+                alert: "利用者が見つかりません。"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to settings_shift_month_path(@shift_month, side: "client"),
+                alert: "利用者予定の追加に失敗しました：#{e.record.errors.full_messages.join(", ")}"
+  end
+
+  def remove_client_schedule
+    schedules =
+      if params[:schedule_ids].present?
+        @shift_month.shift_month_client_schedules.where(id: params[:schedule_ids])
+      else
+        @shift_month.shift_month_client_schedules.where(id: params[:schedule_id])
+      end
+
+    first_schedule = schedules.order(:date, :id).first
+
+    if first_schedule.blank?
+      redirect_to settings_shift_month_path(@shift_month, side: "client"),
+                  alert: "利用者予定が見つかりません。"
+      return
+    end
+
+    client_id = first_schedule.client_id
+    service_kind = first_schedule.service_kind
+
+    schedules.update_all(
+      active: false,
+      source: ShiftMonthClientSchedule.sources[:manual],
+      updated_at: Time.current
+    )
+
+    redirect_to settings_shift_month_path(
+      @shift_month,
+      side: "client",
+      client_id: client_id,
+      client_service_kind: service_kind
+    ), notice: "利用者予定を削除しました。"
+  end
+
   private
 
   def require_organization!
@@ -1338,6 +1460,8 @@ end
         @designations_by_date[d.date][kind] = d.staff_id
       end
     end
+
+    @client_schedules_by_date = build_client_schedules_by_date
   end
 
   def load_holidays
@@ -1443,6 +1567,165 @@ end
     end
 
     hash
+  end
+
+  def build_stay_ranges_by_client_id(schedules)
+    schedules
+      .select { |schedule| schedule.service_kind == "stay" }
+      .group_by(&:client_id)
+      .transform_values do |rows|
+        rows
+          .sort_by(&:date)
+          .chunk_while { |previous_schedule, next_schedule| next_schedule.date == previous_schedule.date + 1 }
+          .map do |range_schedules|
+            {
+              start_date: range_schedules.first.date,
+              end_date: range_schedules.last.date,
+              schedules: range_schedules
+            }
+          end
+      end
+  end
+
+  def build_stay_info_by_key(stay_ranges_by_client_id)
+    stay_ranges_by_client_id.each_with_object({}) do |(client_id, ranges), hash|
+      ranges.each do |range|
+        range[:schedules].each do |schedule|
+          position =
+            if schedule.date == range[:start_date]
+              "start"
+            elsif schedule.date == range[:end_date]
+              "end"
+            else
+              "middle"
+            end
+
+          hash[[client_id, schedule.date]] = {
+            start_date: range[:start_date],
+            end_date: range[:end_date],
+            position: position
+          }
+        end
+      end
+    end
+  end
+
+  def stay_display_name(schedule, stay_info)
+    if stay_info[:position] == "end"
+      "#{schedule.client_display_name}(帰"
+    else
+      schedule.client_display_name
+    end
+  end
+
+  def add_stay_start_day_service_display!(schedules_by_date, schedules, stay_ranges_by_client_id)
+    stay_ranges_by_client_id.each do |client_id, ranges|
+      ranges.each do |range|
+        start_date = range[:start_date]
+        next unless schedules_by_date.key?(start_date)
+
+        stay_schedule = schedules.find do |schedule|
+          schedule.client_id == client_id &&
+            schedule.service_kind == "stay" &&
+            schedule.date == start_date
+        end
+        next if stay_schedule.blank?
+
+        existing_row =
+          schedules_by_date[start_date]["day_service"].find do |row|
+            row[:client_id] == client_id
+          end
+
+        if existing_row
+          existing_row[:stay_start] = true
+        else
+          schedules_by_date[start_date]["day_service"] << {
+            name: stay_schedule.client_display_name,
+            client_id: client_id,
+            source: "stay_start",
+            stay_start: true
+          }
+        end
+      end
+    end
+  end
+
+  def hide_client_schedules_during_stay!(schedules_by_date, stay_ranges_by_client_id)
+    stay_ranges_by_client_id.each do |client_id, ranges|
+      ranges.each do |range|
+        start_date = range[:start_date]
+        end_date = range[:end_date]
+
+        ((start_date + 1)..end_date).each do |date|
+          next unless schedules_by_date.key?(date)
+
+          schedules_by_date[date]["day_service"].reject! do |row|
+            row[:client_id] == client_id
+          end
+        end
+
+        ((start_date + 1)...end_date).each do |date|
+          next unless schedules_by_date.key?(date)
+
+          schedules_by_date[date]["visit"].reject! do |row|
+            row[:client_id] == client_id
+          end
+        end
+      end
+    end
+  end
+
+  def build_client_schedules_by_date
+    schedules_by_date = @dates.index_with do
+      {
+        "day_service" => [],
+        "stay" => [],
+        "visit" => []
+      }
+    end
+
+    schedules =
+      @shift_month.shift_month_client_schedules
+                  .active
+                  .includes(:client)
+                  .ordered
+                  .to_a
+
+    stay_ranges_by_client_id = build_stay_ranges_by_client_id(schedules)
+    stay_info_by_key = build_stay_info_by_key(stay_ranges_by_client_id)
+
+    schedules.each do |schedule|
+      next unless schedules_by_date.key?(schedule.date)
+
+      if schedule.service_kind == "stay"
+        stay_info = stay_info_by_key[[schedule.client_id, schedule.date]]
+
+        schedules_by_date[schedule.date]["stay"] << {
+          name: stay_display_name(schedule, stay_info),
+          client_id: schedule.client_id,
+          stay_position: stay_info[:position]
+        }
+      else
+        schedules_by_date[schedule.date][schedule.service_kind] << {
+          name: schedule.client_display_name,
+          client_id: schedule.client_id,
+          source: schedule.source
+        }
+      end
+    end
+
+    add_stay_start_day_service_display!(
+      schedules_by_date,
+      schedules,
+      stay_ranges_by_client_id
+    )
+
+    hide_client_schedules_during_stay!(
+      schedules_by_date,
+      stay_ranges_by_client_id
+    )
+
+    schedules_by_date
   end
 
   # ShiftDayAssignmentのrelationから、{ "YYYY-MM-DD" => { "day" => [{"slot"=>..,"staff_id"=>..}, ...], ... } } を作る
@@ -1894,6 +2177,52 @@ end
           shift_month.staff_holiday_requests.where(staff_id: staff_id, date: date).delete_all
         end
       end
+    end
+  end
+
+  def ensure_month_client_schedules!
+    ShiftMonthClientSchedules::RegularSyncer.new(shift_month: @shift_month).call
+  end
+
+  def check_month_client_schedule_sync_status!
+    @client_schedule_sync_status =
+      ShiftMonthClientSchedules::SyncStatusChecker.new(shift_month: @shift_month).call
+  end
+
+  def prepare_client_sidebar_vars
+    @client_sidebar_clients = current_user.clients
+                                          .active
+                                          .ordered
+
+    @selected_client =
+      if params[:client_id].present?
+        current_user.clients.active.find_by(id: params[:client_id])
+      end
+
+    @selected_client_service_kind =
+      if %w[stay day_service visit].include?(params[:client_service_kind].to_s)
+        params[:client_service_kind].to_s
+      end
+
+    @selected_client_schedules =
+      if @selected_client.present? && @selected_client_service_kind.present?
+        @shift_month.shift_month_client_schedules
+                    .where(
+                      client: @selected_client,
+                      service_kind: @selected_client_service_kind,
+                      active: true
+                    )
+                    .order(:date, :id)
+      else
+        ShiftMonthClientSchedule.none
+      end
+  end
+
+  def consecutive_dates?(dates)
+    return false if dates.size < 2
+
+    dates.each_cons(2).all? do |previous_date, next_date|
+      next_date == previous_date + 1
     end
   end
 end

@@ -17,197 +17,347 @@
 <% month_begin = Date.new(shift_month.year, shift_month.month, 1) %>
 
 <% editable_row_keys = %i[nurse care care_mgr cook clerk] %>
-<% if editable_row_keys.include?(row_key) && in_month %>
-  <%# 介護/ケアマネ/調理/事務：固定順名簿で「勤務 or 休み」を表示 %>
-  <% staffs_for_row = sorted_staffs_for_row(staff_by_id: staff_by_id, row_key: row_key) %>
+<div class="staff-lines-main">
+  <% if editable_row_keys.include?(row_key) && in_month %>
+    <%# 介護/ケアマネ/調理/事務：固定順名簿で「勤務 or 休み」を表示 %>
+    <% staffs_for_row =
+      sorted_staffs_for_row(staff_by_id: staff_by_id, row_key: row_key)
+        .reject { |s| row_key == :nurse && s.occupation&.name.to_s == "管理者" } %>
 
-  <% assigned_kind_by_id = {} %>
-  <% assigned_day_time_option_id_by_id = {} %>
-  <% assigned_late_time_option_id_by_id = {} %>
+    <% assigned_kind_by_id = {} %>
+    <% assigned_day_time_option_id_by_id = {} %>
+    <% assigned_late_time_option_id_by_id = {} %>
 
-  <% { day: day_rows, early: early_rows, late: late_rows }.each do |kind_sym, rows| %>
-    <% Array(rows).each do |r| %>
-      <% sid = (r["staff_id"] || r[:staff_id]).to_i %>
-      <% next unless sid > 0 %>
+    <% { day: day_rows, early: early_rows, late: late_rows }.each do |kind_sym, rows| %>
+      <% Array(rows).each do |r| %>
+        <% sid = (r["staff_id"] || r[:staff_id]).to_i %>
+        <% next unless sid > 0 %>
 
-      <% assigned_kind_by_id[sid] = kind_sym %>
+        <% assigned_kind_by_id[sid] = kind_sym %>
 
-      <% if kind_sym == :day %>
-        <% opt_id = (r["staff_day_time_option_id"] || r[:staff_day_time_option_id]).to_i %>
-        <% assigned_day_time_option_id_by_id[sid] = (opt_id > 0 ? opt_id : nil) %>
-      <% elsif kind_sym == :late %>
-        <% late_opt_id = (r["shift_month_time_option_id"] || r[:shift_month_time_option_id]).to_i %>
-        <% assigned_late_time_option_id_by_id[sid] = (late_opt_id > 0 ? late_opt_id : nil) %>
+        <% if kind_sym == :day %>
+          <% opt_id = (r["staff_day_time_option_id"] || r[:staff_day_time_option_id]).to_i %>
+          <% assigned_day_time_option_id_by_id[sid] = (opt_id > 0 ? opt_id : nil) %>
+        <% elsif kind_sym == :late %>
+          <% late_opt_id = (r["shift_month_time_option_id"] || r[:shift_month_time_option_id]).to_i %>
+          <% assigned_late_time_option_id_by_id[sid] = (late_opt_id > 0 ? late_opt_id : nil) %>
+        <% end %>
       <% end %>
     <% end %>
-  <% end %>
 
-  <% staffs_for_row.each do |s| %>
-    <% kind = assigned_kind_by_id[s.id] %>
-    <% night_related = night_related_ids.map(&:to_i).include?(s.id) %>
-    <% day_opts =
-      Array(s.staff_day_time_options)
-        .select { |o| o.active? || o.is_default? || Array(o.apply_wdays).reject(&:blank?).any? }
-        .sort_by { |o| [o.position.to_i, o.id.to_i] } %>
-    <% ui_wday = ShiftMonth.ui_wday(date) %>
-    <% day_default =
-        day_opts.find { |o| Array(o.apply_wdays).map(&:to_i).include?(ui_wday) } || 
-        day_opts.find { |o| o.is_default? } %>
-    <% day_opts_for_select =
-        day_opts.sort_by do |o|
-          hit = Array(o.apply_wdays).map(&:to_i).include?(ui_wday)
-          [hit ? 0 : 1, o.position.to_i, o.id.to_i]
+    <% staffs_for_row.each do |s| %>
+      <% kind = assigned_kind_by_id[s.id] %>
+      <% night_related = night_related_ids.map(&:to_i).include?(s.id) %>
+      <% day_opts =
+        Array(s.staff_day_time_options)
+          .select { |o| o.active? || o.is_default? || Array(o.apply_wdays).reject(&:blank?).any? }
+          .sort_by { |o| [o.position.to_i, o.id.to_i] } %>
+      <% ui_wday = ShiftMonth.ui_wday(date) %>
+      <% day_default =
+          day_opts.find { |o| Array(o.apply_wdays).map(&:to_i).include?(ui_wday) } || 
+          day_opts.find { |o| o.is_default? } %>
+      <% day_opts_for_select =
+          day_opts.sort_by do |o|
+            hit = Array(o.apply_wdays).map(&:to_i).include?(ui_wday)
+            [hit ? 0 : 1, o.position.to_i, o.id.to_i]
+          end
+      %>
+
+      <% carry_state = carry_over_state[s.id] %>
+      <% carry_in_kind = carry_state&.dig(:carry_in_kind)&.to_sym %>
+      <% carry_night_off_today = (date == month_begin && carry_in_kind == :night_off) %>
+
+      <% selected =
+        if kind == :day
+          picked_id = assigned_day_time_option_id_by_id[s.id] || day_default&.id
+          picked_id.present? ? "day:#{picked_id}" : "day"
+        elsif kind == :early
+          "early"
+        elsif kind == :late
+          late_opt_id = assigned_late_time_option_id_by_id[s.id] || default_late_time_option_id
+          late_opt_id.present? ? "late:#{late_opt_id}" : "late"
+        else
+          (carry_night_off_today || night_related) ? "night_related" : "off"
         end
-    %>
+      %>
 
-    <% carry_state = carry_over_state[s.id] %>
-    <% carry_in_kind = carry_state&.dig(:carry_in_kind)&.to_sym %>
-    <% carry_night_off_today = (date == month_begin && carry_in_kind == :night_off) %>
+      <% time_text =
+        if selected == "early"
+          "(730-1630)"
+        elsif selected.to_s.start_with?("late")
+          late_opt_id = selected.to_s.split(":")[1].to_i
+          late_opt = late_time_options_by_id[late_opt_id]
+          late_text = late_opt&.time_text.presence || shift_month.default_late_time_text
+          "(#{late_text})"
+        elsif selected.to_s.start_with?("day:")
+          picked_id = selected.split(":")[1].to_i
+          picked = day_opts_for_select.find { |o| o.id.to_i == picked_id }
+          picked&.time_text.present? ? "(#{picked.time_text})" : ""
+        else
+          ""
+        end %>
 
-    <% selected =
-      if kind == :day
-        picked_id = assigned_day_time_option_id_by_id[s.id] || day_default&.id
-        picked_id.present? ? "day:#{picked_id}" : "day"
-      elsif kind == :early
-        "early"
-      elsif kind == :late
-        late_opt_id = assigned_late_time_option_id_by_id[s.id] || default_late_time_option_id
-        late_opt_id.present? ? "late:#{late_opt_id}" : "late"
-      else
-        (carry_night_off_today || night_related) ? "night_related" : "off"
-      end
-    %>
+      <% holiday_request =
+          Array((holiday_requests_by_date || {})[date]).find { |request| request.staff_id.to_i == s.id.to_i } %>
 
-    <% time_text =
-      if selected == "early"
-        "(730-1630)"
-      elsif selected.to_s.start_with?("late")
-        late_opt_id = selected.to_s.split(":")[1].to_i
-        late_opt = late_time_options_by_id[late_opt_id]
-        late_text = late_opt&.time_text.presence || shift_month.default_late_time_text
-        "(#{late_text})"
-      elsif selected.to_s.start_with?("day:")
-        picked_id = selected.split(":")[1].to_i
-        picked = day_opts_for_select.find { |o| o.id.to_i == picked_id }
-        picked&.time_text.present? ? "(#{picked.time_text})" : ""
+      <% off_text =
+          if selected == "off"
+            case holiday_request&.holiday_type
+            when "requested_off"
+              "(希望休)"
+            when "paid_leave"
+              "(有休)"
+            else
+              "(休)"
+            end
+          else
+            ""
+          end %>
+      <% night_related_class = (selected == "night_related") ? "text-danger" : "" %>
+      <% holiday_css_class =
+      if selected == "off"
+        case holiday_request&.holiday_type
+        when "admin_off"
+          "holiday-in-slot holiday-admin-off"
+        when "requested_off"
+          "holiday-in-slot holiday-requested-off"
+        when "paid_leave"
+          "holiday-in-slot holiday-paid-leave"
+        else
+          ""
+        end
       else
         ""
       end %>
 
-     <% holiday_request =
-         Array((holiday_requests_by_date || {})[date]).find { |request| request.staff_id.to_i == s.id.to_i } %>
+      <div class="shift-edit-row" data-controller="shift-edit">
+        <div class="shift-edit-display <%= (selected == "off") ? "is-off" : "" %>">
+          <span class="shift-edit-name <%= night_related_class %> <%= holiday_css_class %>"><%= s.last_name %><%= off_text %></span>
+          <% if time_text.present? %>
+            <span class="shift-edit-time"><%= time_text %></span>
+          <% end %>
+        </div>
 
-    <% off_text =
-        if selected == "off"
-          case holiday_request&.holiday_type
-          when "requested_off"
-            "(希望休)"
-          when "paid_leave"
-            "(有休)"
-          else
-            "(休)"
-          end
-        else
-          ""
-        end %>
-    <% night_related_class = (selected == "night_related") ? "text-danger" : "" %>
-    <% holiday_css_class =
-     if selected == "off"
-       case holiday_request&.holiday_type
-       when "admin_off"
-         "holiday-in-slot holiday-admin-off"
-       when "requested_off"
-         "holiday-in-slot holiday-requested-off"
-       when "paid_leave"
-         "holiday-in-slot holiday-paid-leave"
-       else
-         ""
-       end
-     else
-       ""
-     end %>
+        <% unless selected == "night_related" %>
+          <select
+            class="form-select form-select-sm shift-edit-select"
+            data-action="change->shift-edit#change"
+            data-staff-id="<%= s.id %>"
+            data-staff-name="<%= s.last_name %>"
+            data-update-url="<%= update_draft_assignment_shift_month_path(shift_month) %>"
+            data-date="<%= date.iso8601 %>"
+            data-occupation="<%= row_key %>">
 
-    <div class="shift-edit-row" data-controller="shift-edit">
-      <div class="shift-edit-display <%= (selected == "off") ? "is-off" : "" %>">
-        <span class="shift-edit-name <%= night_related_class %> <%= holiday_css_class %>"><%= s.last_name %><%= off_text %></span>
-        <% if time_text.present? %>
-          <span class="shift-edit-time"><%= time_text %></span>
+            <option value="day" <%= "selected" if selected == "day" %>>
+              <%= s.last_name %>
+            </option>
+
+            <% day_opts_for_select.each do |opt| %>
+              <% v = "day:#{opt.id}" %>
+              <option
+                value="<%= v %>"
+                data-time-text="<%= opt.time_text %>"
+                <%= "selected" if selected == v %>>
+                <%= s.last_name %>(<%= opt.time_text %>)
+              </option>
+            <% end %>
+
+            <option value="early" data-time-text="730-1630" <%= "selected" if selected == "early" %>>
+              <%= s.last_name %>(730-1630)
+            </option>
+
+            <% late_time_options.each do |opt| %>
+              <% v = "late:#{opt.id}" %>
+              <option
+                value="<%= v %>"
+                data-time-text="<%= opt.time_text %>"
+                <%= "selected" if selected == v %>>
+                <%= s.last_name %>(<%= opt.time_text %>)
+              </option>
+            <% end %>
+
+            <option value="off" <%= "selected" if selected == "off" && holiday_request.blank? %>>
+              <%= s.last_name %>(休)
+            </option>
+
+            <option value="off:requested_off" <%= "selected" if selected == "off" && holiday_request&.requested_off? %>>
+              <%= s.last_name %>(希望休)
+            </option>
+
+            <option value="off:paid_leave" <%= "selected" if selected == "off" && holiday_request&.paid_leave? %>>
+              <%= s.last_name %>(有休)
+            </option>
+          </select>
         <% end %>
       </div>
+    <% end %>
+  <% else %>
+    <%# 介護以外：現行の表示（割当のみ） %>
+    <% day_rows.each do |row| %>
+      <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
+      <% staff = staff_by_id[sid] %>
+      <% next if staff.nil? || !staff.active? %>
+      <% if row_key_for(staff) == row_key %>
+        <div class="small"><%= staff.last_name %></div>
+      <% end %>
+    <% end %>
 
-      <% unless selected == "night_related" %>
-        <select
-          class="form-select form-select-sm shift-edit-select"
-          data-action="change->shift-edit#change"
-          data-staff-id="<%= s.id %>"
-          data-staff-name="<%= s.last_name %>"
-          data-update-url="<%= update_draft_assignment_shift_month_path(shift_month) %>"
-          data-date="<%= date.iso8601 %>"
-          data-occupation="<%= row_key %>">
+    <%# 未割当(休み)表示：その月だけ %>
+    <% if in_month %>
+      <% unassigned_staffs = (unassigned_display_staffs_by_date && unassigned_display_staffs_by_date[date]) || [] %>
+      <% unassigned_staffs.each do |staff| %>
+        <% next if staff.nil? || !staff.active? %>
+        <% next if night_related_ids.include?(staff.id.to_i) %>
+        <% next unless row_key_for(staff) == row_key %>
+        <div class="small text-danger"><%= staff.last_name %>(休)</div>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>
 
-          <option value="day" <%= "selected" if selected == "day" %>>
-            <%= s.last_name %>
-          </option>
+<% if row_key == :nurse && in_month %>
+  <% admin_staffs =
+      staff_by_id.values
+                 .select { |s| s&.active? && s.occupation&.name.to_s == "管理者" }
+                 .sort_by do |s|
+                   [
+                     s.workday_constraint == "free" ? 0 : 1,
+                     s.last_name_kana.to_s,
+                     s.first_name_kana.to_s,
+                     s.id.to_i
+                   ]
+                 end %>
 
-          <% day_opts_for_select.each do |opt| %>
-            <% v = "day:#{opt.id}" %>
-            <option
-              value="<%= v %>"
-              data-time-text="<%= opt.time_text %>"
-              <%= "selected" if selected == v %>>
-              <%= s.last_name %>(<%= opt.time_text %>)
+  <% if admin_staffs.any? %>
+    <div class="admin-staff-bottom">
+      <% admin_staffs.each do |s| %>
+        <% assigned =
+            Array(day_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i } ||
+            Array(early_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i } ||
+            Array(late_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i } %>
+
+        <% holiday_request =
+            Array((holiday_requests_by_date || {})[date]).find { |request| request.staff_id.to_i == s.id.to_i } %>
+
+        <% off_label =
+            case holiday_request&.holiday_type
+            when "requested_off"
+              "(希望休)"
+            when "paid_leave"
+              "(有休)"
+            else
+              "(休)"
+            end %>
+
+        <% selected =
+            if Array(day_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i }
+              "day"
+            elsif Array(early_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i }
+              "early"
+            elsif Array(late_rows).any? { |row| (row["staff_id"] || row[:staff_id]).to_i == s.id.to_i }
+              "late"
+            elsif holiday_request&.requested_off?
+              "off:requested_off"
+            elsif holiday_request&.paid_leave?
+              "off:paid_leave"
+            else
+              "off"
+            end %>
+
+        <% display_class =
+            selected.to_s.start_with?("off") ? "shift-edit-display is-off" : "shift-edit-display" %>
+
+        <% display_text =
+            case selected
+            when "day"
+              s.last_name
+            when "early"
+              "#{s.last_name}"
+            when "late"
+              "#{s.last_name}"
+            when "off:requested_off"
+              "#{s.last_name}(希望休)"
+            when "off:paid_leave"
+              "#{s.last_name}(有休)"
+            else
+              "#{s.last_name}(休)"
+            end %>
+
+        <% admin_holiday_css_class =
+          if selected.to_s.start_with?("off")
+            case selected
+            when "off:requested_off"
+              "holiday-in-slot holiday-requested-off"
+            when "off:paid_leave"
+              "holiday-in-slot holiday-paid-leave"
+            else
+              ""
+            end
+          else
+            ""
+          end %>
+
+        <% display_time_text =
+            case selected
+            when "early"
+              "730-1630"
+            when "late"
+              shift_month.default_late_time_text
+            else
+              ""
+            end %>
+
+        <div class="shift-edit-row" data-controller="shift-edit">
+          <div class="<%= display_class %>">
+            <span class="shift-edit-name <%= admin_holiday_css_class %>"><%= display_text %></span>
+
+            <% if display_time_text.present? %>
+              <span class="shift-edit-time"><%= display_time_text %></span>
+            <% end %>
+          </div>
+
+          <select
+            class="form-select form-select-sm shift-edit-select"
+            data-action="change->shift-edit#change"
+            data-staff-id="<%= s.id %>"
+            data-staff-name="<%= s.last_name %>"
+            data-update-url="<%= update_draft_assignment_shift_month_path(shift_month) %>"
+            data-date="<%= date.iso8601 %>"
+            data-occupation="nurse">
+
+            <option value="day" <%= "selected" if selected == "day" %>>
+              <%= s.last_name %>
             </option>
-          <% end %>
 
-          <option value="early" data-time-text="730-1630" <%= "selected" if selected == "early" %>>
-            <%= s.last_name %>(730-1630)
-          </option>
-
-          <% late_time_options.each do |opt| %>
-            <% v = "late:#{opt.id}" %>
-            <option
-              value="<%= v %>"
-              data-time-text="<%= opt.time_text %>"
-              <%= "selected" if selected == v %>>
-              <%= s.last_name %>(<%= opt.time_text %>)
+            <option value="early" data-time-text="730-1630" <%= "selected" if selected == "early" %>>
+              <%= s.last_name %>(730-1630)
             </option>
-          <% end %>
 
-          <option value="off" <%= "selected" if selected == "off" && holiday_request.blank? %>>
-            <%= s.last_name %>(休)
-          </option>
+            <% late_time_options.each do |opt| %>
+              <% v = "late:#{opt.id}" %>
+              <option
+                value="<%= v %>"
+                data-time-text="<%= opt.time_text %>"
+                <%= "selected" if selected == "late" || selected == v %>>
+                <%= s.last_name %>(<%= opt.time_text %>)
+              </option>
+            <% end %>
 
-          <option value="off:requested_off" <%= "selected" if selected == "off" && holiday_request&.requested_off? %>>
-            <%= s.last_name %>(希望休)
-          </option>
+            <option value="off" <%= "selected" if selected == "off" %>>
+              <%= s.last_name %>(休)
+            </option>
 
-          <option value="off:paid_leave" <%= "selected" if selected == "off" && holiday_request&.paid_leave? %>>
-            <%= s.last_name %>(有休)
-          </option>
-        </select>
+            <option value="off:requested_off" <%= "selected" if selected == "off:requested_off" %>>
+              <%= s.last_name %>(希望休)
+            </option>
+
+            <option value="off:paid_leave" <%= "selected" if selected == "off:paid_leave" %>>
+              <%= s.last_name %>(有休)
+            </option>
+          </select>
+        </div>
       <% end %>
     </div>
-  <% end %>
-<% else %>
-  <%# 介護以外：現行の表示（割当のみ） %>
-  <% day_rows.each do |row| %>
-    <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
-    <% staff = staff_by_id[sid] %>
-    <% next if staff.nil? || !staff.active? %>
-    <% if row_key_for(staff) == row_key %>
-      <div class="small"><%= staff.last_name %></div>
-    <% end %>
-  <% end %>
-
-  <%# 未割当(休み)表示：その月だけ %>
-  <% if in_month %>
-    <% unassigned_staffs = (unassigned_display_staffs_by_date && unassigned_display_staffs_by_date[date]) || [] %>
-    <% unassigned_staffs.each do |staff| %>
-      <% next if staff.nil? || !staff.active? %>
-      <% next if night_related_ids.include?(staff.id.to_i) %>
-      <% next unless row_key_for(staff) == row_key %>
-      <div class="small text-danger"><%= staff.last_name %>(休)</div>
-    <% end %>
   <% end %>
 <% end %>
 

@@ -104,6 +104,11 @@
   vertical-align: top;
 }
 
+.week-head-row .day-head:not(.is-out) .day-date {
+  background-color: #b6d9f8;
+  padding: 1px 0;
+}
+
 .day-head .day-kinds .kcell.is-disabled {
   color: rgba(0, 0, 0, 0.25);
   font-weight: 400;
@@ -143,6 +148,106 @@
   grid-template-columns: 1.4fr 1.4fr 1fr;
   font-size: 12px;
   border-top: 1px solid #e5e5e5;
+}
+
+/* =========================================
+   利用者予定行
+========================================= */
+
+.client-schedule-row > td {
+  background-color: #fff8e6;
+}
+
+.client-schedule-row th,
+.client-schedule-row td {
+  height: 46px;
+}
+
+.client-schedule-cell {
+  background-color: #fff8e6;
+  padding: 0;
+}
+
+.client-schedule-slots {
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr 1fr;
+  height: 100%;
+}
+
+.client-schedule-slot {
+  border-left: 1px solid #e5e5e5;
+  padding: 2px 3px;
+  min-width: 0;
+  background-color: #fff8e6;
+}
+
+.client-schedule-slot:first-child {
+  border-left: none;
+}
+
+.client-schedule-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: #6c757d;
+  line-height: 1.1;
+  margin-bottom: 2px;
+}
+
+.client-schedule-empty {
+  font-size: 10px;
+  color: #adb5bd;
+  line-height: 1.2;
+}
+
+.client-schedule-names {
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: normal;
+  word-break: keep-all;
+}
+
+.client-schedule-name {
+  display: block;
+  font-size: 9px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.client-schedule-name-stay-start {
+  color: #e67e22;
+  font-weight: 600;
+}
+
+.client-schedule-slot-stay-filled {
+  background-color: #ffd966;
+}
+
+.client-kinds {
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr 1fr;
+  font-size: 12px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.client-kinds .kcell {
+  text-align: center;
+  border-left: 1px solid #e5e5e5;
+}
+
+.client-kinds .kcell:first-child {
+  border-left: none;
+}
+
+.work-kind-row th,
+.work-kind-row td {
+  height: 22px;
+}
+
+.work-kind-cell {
+  padding: 0;
+  vertical-align: middle;
 }
 
 .day-kinds .kcell {
@@ -216,6 +321,22 @@
 
 .slot:first-child {
   border-left: none;
+}
+
+.slot-day-with-admin {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+}
+
+.staff-lines-main {
+  flex: 0 0 auto;
+}
+
+.admin-staff-bottom {
+  margin-top: auto;
+  padding-top: 1px;
 }
 
 .holiday-in-slot {
@@ -632,6 +753,12 @@ body.sidebar-left-collapsed #main-content {
   color: #fff;
 }
 
+.flatpickr-day.inRange {
+  background: #cfe2ff;
+  color: #000;
+  box-shadow: none;
+}
+
 .flatpickr-day.today {
   border: 1px solid #0d6efd;
 }
@@ -664,4 +791,22 @@ body.sidebar-left-collapsed #main-content {
   background: transparent;
   font-weight: 600;
   font-size: 11px;
+}
+
+.shift-calendar-month .slot div.holiday-in-slot {
+  display: block;
+  width: fit-content;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+.shift-calendar-month .slot span.holiday-in-slot {
+  display: inline-block;
+  width: fit-content;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
 }
