@@ -98,14 +98,11 @@
           </span>
         </div>
 
-        <% if @selected_client_service_kind == "stay" %>
-          <div class="small text-muted mt-1">
-            泊まり期間の日付を選択してください。帰宅日まで含めて選択します。
-          </div>
-        <% end %>
-
         <div class="d-flex justify-content-end mt-2">
-          <%= submit_tag "まとめて追加", class: "btn btn-sm btn-light border" %>
+          <%= submit_tag(
+                @selected_client_service_kind == "stay" ? "期間を追加" : "まとめて追加",
+                class: "btn btn-sm btn-light border"
+              ) %>
         </div>
       <% end %>
     </div>
