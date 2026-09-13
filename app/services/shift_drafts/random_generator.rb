@@ -608,25 +608,33 @@ module ShiftDrafts
           wday_kind_bias = -assigned_kind_count_on_wday_in_month(sid, date.wday, kind)
         end
 
+        previous_same_kind_bias = 0
+        if date.present? && [ :early, :late ].include?(kind)
+          previous_same_kind_bias =
+            previous_day_same_kind_assigned?(sid, date, kind) ? 0 : 1
+        end
+
         case priority_mode
         when :worked_only # 純粋に勤務日数だけチェック
           [
             role_bias,
+            previous_same_kind_bias,
             wday_kind_bias,
             week_kind,
-            -worked, # 末尾が「勤務日数少ない人」にしたいので -worked(小→大で末尾が小さくなる)
+            -worked,
             rand
           ]
         else # :full
           days_since = days_since_last_work(sid, date: date)
           [
             role_bias,
+            previous_same_kind_bias,
             wday_kind_bias,
             week_kind,
             week_day,
             days_since,
             -worked,
-            rand                                # 同点揺らぎ
+            rand
           ]
         end
       end
@@ -660,7 +668,7 @@ module ShiftDrafts
       ids += Array(@holiday_ids_by_date[next_date]) if @dates.include?(next_date)
 
       ids.map(&:to_i).uniq
-    end    
+    end
 
     def apply_carry_over_forced_offs!(month_begin:)
       return if @carry_over_state.blank?
@@ -778,6 +786,17 @@ module ShiftDrafts
       return false if daily.blank?
 
       daily[previous_day] == :late
+    end
+
+    def previous_day_same_kind_assigned?(staff_id, date, kind)
+      return false if staff_id.blank? || date.nil? || kind.blank?
+      return false unless [ :early, :late ].include?(kind.to_sym)
+      return false if @timeline.nil?
+
+      daily = @timeline.instance_variable_get(:@timeline)&.[](staff_id.to_i)
+      return false if daily.blank?
+
+      daily[date - 1] == kind.to_sym
     end
 
     def lock_after_double_night!(staff_id, date:, month_end:)
