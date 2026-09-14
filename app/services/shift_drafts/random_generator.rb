@@ -12,6 +12,10 @@ module ShiftDrafts
         @carry_over_state.each_with_object(Hash.new(0)) do |(staff_id, state), hash|
           hash[staff_id.to_i] = state[:first_week_paid_leave_count].to_i
         end
+      @carried_work_streaks_by_staff_id =
+        @carry_over_state.each_with_object(Hash.new(0)) do |(staff_id, state), hash|
+          hash[staff_id.to_i] = state[:carried_work_streak].to_i
+        end
     end
 
     def call
@@ -361,7 +365,7 @@ module ShiftDrafts
       if date.present? && [ :day, :early, :late ].include?(kind)
         candidate_ids =
           candidate_ids.reject do |sid|
-            before = @timeline.consecutive_day_count_before(sid, date)
+            before = consecutive_dayish_count_before_with_carry(sid, date)
             after  = consecutive_designation_days_after(sid, date)
             max_days = max_consecutive_work_days_for(sid)
 
@@ -719,7 +723,7 @@ module ShiftDrafts
 
       # 今日割当後の連続日勤系数
       sid = staff_id.to_i
-      before = @timeline.consecutive_day_count_before(sid, date)
+      before = consecutive_dayish_count_before_with_carry(sid, date)
       streak_after_assignment = before + 1
       max_days = max_consecutive_work_days_for(sid)
 
@@ -1185,18 +1189,39 @@ module ShiftDrafts
       end
     end
 
+    def consecutive_dayish_count_before_with_carry(staff_id, date)
+      sid = staff_id.to_i
+
+      before = @timeline.consecutive_day_count_before(sid, date)
+
+      month_begin = @dates.first
+      days_before_date = (date - month_begin).to_i
+
+      if before == days_before_date
+        before += @carried_work_streaks_by_staff_id[sid].to_i
+      end
+
+      before
+    end
+
     def consecutive_dayish_count_after_add(staff_id, date)
       sid = staff_id.to_i
 
       before = 0
       d = date - 1
+
       while @dates.include?(d) && staff_assigned_dayish_on?(sid, d)
         before += 1
         d -= 1
       end
 
+      if d < @dates.first
+        before += @carried_work_streaks_by_staff_id[sid].to_i
+      end
+
       after = 0
       d = date + 1
+
       while @dates.include?(d) && staff_assigned_dayish_on?(sid, d)
         after += 1
         d += 1
