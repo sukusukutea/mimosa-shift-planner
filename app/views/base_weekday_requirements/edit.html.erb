@@ -26,7 +26,6 @@
                 <th colspan="6" class="small py-1 lh-1" style="background-color:#7fd9d2;">日勤</th>
                 <th rowspan="2" colspan="1" class="small py-1 lh-1" style="background-color:#e6f0f0;">早番</th>
                 <th rowspan="2" colspan="1" class="small py-1 lh-1" style="background-color:#e6f0f0;">遅番</th>
-                <th rowspan="2" colspan="1" class="small py-1 lh-1" style="background-color:#e6f0f0;">夜勤</th>
               </tr>
               <tr class="text-center">
                 <th class="small py-1 lh-1" style="background-color:#d8ecff;">看護</th>
@@ -116,16 +115,6 @@
                       <%= check_box_tag "weekday_requirements[#{i}][late]",
                                         1,
                                         @rows[i]["late"].to_i > 0,
-                                        class: "form-check-input" %>
-                    </div>
-                  </td>
-
-                  <td class="py-1">
-                    <%= hidden_field_tag "weekday_requirements[#{i}][night]", 0 %>
-                    <div class="form-check form-switch d-flex justify-content-center m-0">
-                      <%= check_box_tag "weekday_requirements[#{i}][night]",
-                                        1,
-                                        @rows[i]["night"].to_i > 0,
                                         class: "form-check-input" %>
                     </div>
                   </td>

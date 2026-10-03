@@ -46,7 +46,7 @@ class BaseWeekdayRequirementsController < ApplicationController
           rec.save!
         end
 
-        %w[early late night].each do |kind|
+        %w[early late].each do |kind|
           num = roles_hash[kind].to_i # トグル: "0"or"1"
 
           rec = current_user.base_weekday_requirements.find_or_initialize_by(
@@ -108,7 +108,6 @@ class BaseWeekdayRequirementsController < ApplicationController
         "care_visit" => 0,
         "early" => 0,
         "late" => 0,
-        "night" => 0,
         "drive" => 0,
         "cook" => 0
       }

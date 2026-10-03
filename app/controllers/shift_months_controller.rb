@@ -178,7 +178,6 @@ class ShiftMonthsController < ApplicationController
           assignments_hash: @previous_month_assignments_for_display
         )
         .call
-    @weekday_requirements = build_weekday_requirements_hash
     @day_req = @shift_month.required_counts_for(@selected_date, shift_kind: :day)
     @day_skill_req = @shift_month.required_skill_counts_for(@selected_date)
 
@@ -240,7 +239,7 @@ class ShiftMonthsController < ApplicationController
         setting.update!(late_slots: 1)
       end
 
-      ShiftMonth::SHIFT_KINDS.each do |kind|
+      ShiftMonth::SHIFT_KINDS.reject { |kind| kind == :night }.each do |kind|
         enabled = ActiveModel::Type::Boolean.new.cast(enabled_hash[kind.to_s])
         style = setting.shift_day_styles.find_or_initialize_by(shift_kind: kind)
         style.enabled = enabled
@@ -395,6 +394,8 @@ class ShiftMonthsController < ApplicationController
       end
     end
 
+    sync_night_styles!
+
     redirect_to settings_shift_month_path(@shift_month, tab: "daily", date: date.iso8601)
   rescue ArgumentError
     redirect_to settings_shift_month_path(@shift_month, tab: "daily"), alert: "日付が不正です"
@@ -406,9 +407,17 @@ class ShiftMonthsController < ApplicationController
   def remove_designation
     designation = @shift_month.shift_day_designations.find(params[:designation_id])
     staff_id = designation.staff_id
+
     designation.destroy!
 
-    redirect_to settings_shift_month_path(@shift_month, tab: "daily", date: params[:date], designation_staff_id: staff_id)
+    sync_night_styles!
+
+    redirect_to settings_shift_month_path(
+      @shift_month,
+      tab: "daily",
+      date: params[:date],
+      designation_staff_id: staff_id
+    )
   end
 
   def bulk_add_staff_holidays
@@ -587,7 +596,7 @@ end
           rec.save!
         end
 
-        %w[early late night].each do |kind|
+        %w[early late].each do |kind|
           num = roles_hash[kind].to_i
 
           rec = @shift_month.shift_month_requirements.find_or_initialize_by(
@@ -1281,6 +1290,8 @@ end
         schedule.active = true
         schedule.save!
       end
+
+      sync_night_styles! if service_kind == "stay"
     end
 
     redirect_to settings_shift_month_path(
@@ -1316,11 +1327,15 @@ end
     client_id = first_schedule.client_id
     service_kind = first_schedule.service_kind
 
-    schedules.update_all(
-      active: false,
-      source: ShiftMonthClientSchedule.sources[:manual],
-      updated_at: Time.current
-    )
+    ActiveRecord::Base.transaction do
+      schedules.update_all(
+        active: false,
+        source: ShiftMonthClientSchedule.sources[:manual],
+        updated_at: Time.current
+      )
+
+      sync_night_styles! if service_kind == "stay"
+    end
 
     redirect_to settings_shift_month_path(
       @shift_month,
@@ -1520,53 +1535,6 @@ end
   def prepare_month_tab_vars
     @late_time_options =
       @shift_month.shift_month_time_options.late.order(:position, :id)
-  end
-
-  def build_weekday_requirements_hash
-    hash = (0..6).index_with do
-      {
-        "nurse" => 0,
-        "nurse_visit" => 0,
-        "care" => 0,
-        "care_visit" => 0,
-        "early" => 0,
-        "late" => 0,
-        "night" => 0,
-        "drive" => 0,
-        "cook" => 0
-      }
-    end
-
-    @shift_month.shift_month_requirements.each do |r|
-      dow = r.day_of_week
-      kind = r.shift_kind.to_s
-
-      if kind == "day"
-        hash[dow][r.role] = r.required_number
-      else
-        next unless r.role == "any"
-
-        hash[dow][kind] = r.required_number
-      end
-    end
-
-    @shift_month.shift_month_skill_requirements.each do |r|
-      dow = r.day_of_week
-      skill = r.skill.to_s
-      role = r.role.to_s
-
-      if skill == "visit"
-        next unless %w[nurse care].include?(role)
-
-        hash[dow]["#{role}_visit"] = r.required_number
-      else
-        next unless role == "any"
-
-        hash[dow][skill] = r.required_number
-      end
-    end
-
-    hash
   end
 
   def build_stay_ranges_by_client_id(schedules)
@@ -1833,12 +1801,14 @@ end
   def weekday_requirements_changed?(shift_month:)
     base_rows =
       current_user.base_weekday_requirements
+                  .where.not(shift_kind: :night)
                   .select(:shift_kind, :day_of_week, :role, :required_number)
                   .map { |r| [ r.shift_kind.to_s, r.day_of_week.to_i, r.role.to_s, r.required_number.to_i ] }
                   .sort
 
     month_rows =
       shift_month.shift_month_requirements
+                .where.not(shift_kind: :night)
                 .select(:shift_kind, :day_of_week, :role, :required_number)
                 .map { |r| [ r.shift_kind.to_s, r.day_of_week.to_i, r.role.to_s, r.required_number.to_i ] }
                 .sort
@@ -2223,6 +2193,74 @@ end
 
     dates.each_cons(2).all? do |previous_date, next_date|
       next_date == previous_date + 1
+    end
+  end
+
+  def sync_night_styles!
+    month_begin = Date.new(@shift_month.year, @shift_month.month, 1)
+    month_end = month_begin.end_of_month
+
+    # -------------------------
+    # ① 利用者の泊まりから夜勤日を求める
+    # -------------------------
+    stay_rows =
+      @shift_month.shift_month_client_schedules
+                  .where(
+                    service_kind: :stay,
+                    active: true,
+                    date: month_begin..month_end
+                  )
+                  .pluck(:client_id, :date)
+
+    stay_dates_by_client =
+      stay_rows.group_by(&:first).transform_values do |rows|
+        rows.map(&:last).to_set
+      end
+
+    night_dates = Set.new
+
+    stay_dates_by_client.each_value do |stay_dates|
+      stay_dates.each do |date|
+        # 同じ利用者が翌日も泊まりなら、
+        # この日の夜は夜勤が必要
+        night_dates << date if stay_dates.include?(date + 1)
+      end
+    end
+
+    # -------------------------
+    # ② 管理者の夜勤指名から夜勤日を求める
+    # -------------------------
+    designation_night_dates =
+      @shift_month.shift_day_designations
+                  .where(
+                    shift_kind: :night,
+                    date: month_begin..month_end
+                  )
+                  .pluck(:date)
+
+    night_dates.merge(designation_night_dates)
+
+    # -------------------------
+    # ③ 最終的なON/OFFを保存
+    # -------------------------
+    (month_begin..month_end).each do |date|
+      setting =
+        @shift_month.shift_day_settings.find_or_create_by!(
+          date: date
+        )
+
+      style =
+        setting.shift_day_styles.find_or_initialize_by(
+          shift_kind: :night
+        )
+
+      should_enable = night_dates.include?(date)
+
+      next if style.persisted? &&
+              style.enabled == should_enable
+
+      style.enabled = should_enable
+      style.save!
     end
   end
 end

@@ -21,7 +21,6 @@
               <th colspan="6" class="small py-1 lh-1" style="background-color:#7fd9d2;">日勤</th>
               <th rowspan="2" colspan="1" class="small py-1 lh-1" style="background-color: #e6f0f0;">早番</th>
               <th rowspan="2" colspan="1" class="small py-1 lh-1" style="background-color: #e6f0f0;">遅番</th>
-              <th rowspan="2" colspan="1" class="small py-1 lh-1" style="background-color: #e6f0f0;">夜勤</th>
             </tr>
             <tr class="text-center">
               <th class="small py-1 lh-1" style="background-color:#d8ecff;">看護</th>
@@ -46,7 +45,6 @@
                 <td><%= @rows[i]["cook"] %></td>
                 <td><%= @rows[i]["early"] > 0 ? "○" : "-" %></td>
                 <td><%= @rows[i]["late"]  > 0 ? "○" : "-" %></td>
-                <td><%= @rows[i]["night"] > 0 ? "○" : "-" %></td>
               </tr>
             <% end %>
           </tbody>

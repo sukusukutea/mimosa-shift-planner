@@ -28,7 +28,7 @@ class ShiftMonth < ApplicationRecord
       day: true,
       early: requirements_index[[ :early, w ]]&.dig(:any).to_i > 0,
       late:  requirements_index[[ :late,  w ]]&.dig(:any).to_i > 0,
-      night: requirements_index[[ :night, w ]]&.dig(:any).to_i > 0
+      night: false
     }
 
     # 設定がなければ全部の勤務をONにする（index_withで各勤務にtrueのハッシュつける）
@@ -48,13 +48,15 @@ class ShiftMonth < ApplicationRecord
 
     result = {}
     SHIFT_KINDS.each do |kind|
-      if %i[early late night].include?(kind)
+      if %i[early late].include?(kind)
         result[kind] = dates.index_with do |date|
           w = self.class.ui_wday(date)
           requirements_index[[ kind, w ]]&.dig(:any).to_i > 0
         end
+      elsif kind == :night
+        result[kind] = dates.index_with(false)
       else
-        result[kind] = dates.index_with(true) # dayは常にtrue
+        result[kind] = dates.index_with(true)
       end
     end
 
@@ -153,10 +155,13 @@ class ShiftMonth < ApplicationRecord
 
   def copy_weekday_requirements_from_base!(user:)
     BaseWeekdayRequirement.transaction do
-      base_rows = user.base_weekday_requirements.select(:shift_kind, :day_of_week, :role, :required_number)
+      base_rows =
+        user.base_weekday_requirements
+            .where.not(shift_kind: :night)
+            .select(:shift_kind, :day_of_week, :role, :required_number)
 
       base_rows.each do |base|
-        rec = shift_month_requirements.find_or_initialize_by( # rec = recordの略
+        rec = shift_month_requirements.find_or_initialize_by(
           shift_kind: base.shift_kind,
           day_of_week: base.day_of_week,
           role: base.role
@@ -166,7 +171,7 @@ class ShiftMonth < ApplicationRecord
       end
     end
 
-    clear_requirements_cache! # requirements_indexを使ってるならキャッシュクリア
+    clear_requirements_cache!
   end
 
   def copy_skill_requirements_from_base!(user:)
