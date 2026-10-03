@@ -15,6 +15,8 @@
         <%= hidden_field_tag :date, conflict["date"] %>
         <%= hidden_field_tag "designation[staff_id]", conflict["staff_id"] %>
         <%= hidden_field_tag "designation[shift_kind]", conflict["shift_kind"] %>
+        <%= hidden_field_tag :night_action,
+                     conflict["night_action"] if conflict["night_action"].present? %>
         <%= hidden_field_tag :force, "1" %>
         <%= button_tag "はい（上書き）", class: "btn btn-sm btn-warning" %>
       <% end %>
@@ -56,6 +58,56 @@
                                             tab: "daily",
                                             date: conflict["date"],
                                             designation_staff_id: conflict["staff_id"]),
+                  class: "btn btn-sm btn-light border" %>
+    </div>
+  </div>
+<% end %>
+
+<% if conflict && conflict["kind"] == "night_already_exists" %>
+  <div class="alert alert-warning py-2 px-2 small">
+    <div class="fw-bold mb-1">夜勤者の登録確認</div>
+
+    <div class="mb-2">
+      この日はすでに
+      <strong><%= conflict["existing_staff_name"].presence || "別の職員" %></strong>
+      さんが夜勤に指定されています。<br>
+      新しく選択した職員をどのように登録しますか？
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+      <%= form_with url: update_designation_shift_month_path(@shift_month),
+                    method: :post,
+                    local: true,
+                    class: "m-0" do %>
+        <%= hidden_field_tag :date, conflict["date"] %>
+        <%= hidden_field_tag "designation[staff_id]", conflict["staff_id"] %>
+        <%= hidden_field_tag "designation[shift_kind]", "night" %>
+        <%= hidden_field_tag :night_action, "replace" %>
+
+        <%= button_tag "入れ替える",
+                       class: "btn btn-sm btn-warning" %>
+      <% end %>
+
+      <%= form_with url: update_designation_shift_month_path(@shift_month),
+                    method: :post,
+                    local: true,
+                    class: "m-0" do %>
+        <%= hidden_field_tag :date, conflict["date"] %>
+        <%= hidden_field_tag "designation[staff_id]", conflict["staff_id"] %>
+        <%= hidden_field_tag "designation[shift_kind]", "night" %>
+        <%= hidden_field_tag :night_action, "add" %>
+
+        <%= button_tag "2人目として追加",
+                       class: "btn btn-sm btn-primary" %>
+      <% end %>
+
+      <%= link_to "キャンセル",
+                  settings_shift_month_path(
+                    @shift_month,
+                    tab: "daily",
+                    date: conflict["date"],
+                    designation_staff_id: conflict["staff_id"]
+                  ),
                   class: "btn btn-sm btn-light border" %>
     </div>
   </div>

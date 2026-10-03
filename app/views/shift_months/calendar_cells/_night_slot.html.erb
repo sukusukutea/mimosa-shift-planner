@@ -6,12 +6,62 @@
 <% ctx = shift_day_context(draft, date, carry_over_state: carry_over_state, shift_month: shift_month) %>
 <% night_rows = ctx[:night_rows] %>
 <% night_off_ids = Array(ctx[:night_off_ids]).map(&:to_i) %>
+<% night_staff_ids =
+     Array(night_rows).map do |row|
+       (row["staff_id"] || row[:staff_id]).to_i
+     end %>
+
+<% night_count = night_staff_ids.size %>
+
+<% night_candidates =
+     staff_by_id.values
+                .select { |s| s&.active? }
+                .select { |s| s.respond_to?(:can_night) && s.can_night }
+                .sort_by { |s| [s.last_name_kana.to_s, s.first_name_kana.to_s, s.id.to_i] } %>
 
 <% night_rows.each do |row| %>
   <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
+  <% slot = (row["slot"] || row[:slot]).to_i %>
   <% staff = staff_by_id[sid] %>
   <% next if staff.nil? %>
-  <% if row_key_for(staff) == row_key %>
+  <% next unless row_key_for(staff) == row_key %>
+
+  <% if in_month && [:nurse, :care].include?(row_key) %>
+    <div class="night-edit-row" data-controller="night-picker">
+      <div class="night-edit-display is-selected" data-night-picker-target="display">
+        <span class="night-edit-name" data-night-picker-target="name">
+          <%= staff.last_name %>
+        </span>
+      </div>
+
+      <select
+        class="form-select form-select-sm night-edit-select--overlay"
+        data-action="change->night-picker#change"
+        data-night-picker-target="select"
+        data-update-url="<%= update_draft_assignment_shift_month_path(shift_month) %>"
+        data-date="<%= date.iso8601 %>"
+        data-night-action="replace"
+        data-night-slot="<%= slot %>"
+      >
+        <option value="0">夜勤を外す</option>
+        <% existing_night_candidates =
+            ([staff] +
+              night_candidates
+                .select { |s| row_key_for(s) == row_key }
+                .reject { |s| night_staff_ids.include?(s.id.to_i) && s.id.to_i != sid })
+              .uniq { |s| s.id } %>
+
+        <% existing_night_candidates.each do |s| %>
+          <option
+            value="<%= s.id %>"
+            <%= "selected" if s.id.to_i == sid %>
+          >
+            <%= s.last_name %>
+          </option>
+        <% end %>
+      </select>
+    </div>
+  <% else %>
     <div class="small"><%= staff.last_name %></div>
   <% end %>
 <% end %>
@@ -26,30 +76,39 @@
   <% end %>
 <% end %>
 
-<% if in_month && [:nurse, :care].include?(row_key) %>
-  <div class="night-edit-row" data-controller="night-picker">
-    <div class="night-edit-display" data-night-picker-target="display">
-      <span class="night-edit-name" data-night-picker-target="name">夜勤を選択</span>
+<% if in_month &&
+      [:nurse, :care].include?(row_key) &&
+      night_count < 2 %>
+
+  <% add_candidates =
+       night_candidates
+         .select { |s| row_key_for(s) == row_key }
+         .reject { |s| night_staff_ids.include?(s.id.to_i) } %>
+
+  <% if add_candidates.any? %>
+    <% add_label = night_count.zero? ? "選択" : "夜勤者を追加" %>
+
+    <div class="night-edit-row" data-controller="night-picker">
+      <div class="night-edit-display" data-night-picker-target="display">
+        <span class="night-edit-name" data-night-picker-target="name">
+          <%= add_label %>
+        </span>
+      </div>
+
+      <select
+        class="form-select form-select-sm night-edit-select--overlay"
+        data-action="change->night-picker#change"
+        data-night-picker-target="select"
+        data-update-url="<%= update_draft_assignment_shift_month_path(shift_month) %>"
+        data-date="<%= date.iso8601 %>"
+        data-night-action="add"
+      >
+        <option value="" disabled selected><%= add_label %></option>
+
+        <% add_candidates.each do |s| %>
+          <option value="<%= s.id %>"><%= s.last_name %></option>
+        <% end %>
+      </select>
     </div>
-
-    <select
-      class="form-select form-select-sm night-edit-select--overlay"
-      data-action="change->night-picker#change"
-      data-night-picker-target="select"
-      data-update-url="<%= update_draft_assignment_shift_month_path(shift_month) %>"
-      data-date="<%= date.iso8601 %>"
-    >
-      <option value="" disabled selected>選択</option>
-      <option value="0">夜勤なし</option>
-
-      <% staff_by_id.values
-          .select { |s| s&.active? }
-          .select { |s| row_key_for(s) == row_key }
-          .select { |s| s.respond_to?(:can_night) && s.can_night }
-          .sort_by { |s| [s.last_name_kana.to_s, s.first_name_kana.to_s, s.id.to_i] }
-          .each do |s| %>
-        <option value="<%= s.id %>"><%= s.last_name %></option>
-      <% end %>
-    </select>
-  </div>
+  <% end %>
 <% end %>

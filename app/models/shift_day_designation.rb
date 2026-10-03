@@ -9,5 +9,5 @@ class ShiftDayDesignation < ApplicationRecord
   # day は複数人OKにしたいので「kindのユニーク」は day 以外にだけかける
   validates :shift_kind,
             uniqueness: { scope: [ :shift_month_id, :date ] },
-            unless: -> { %w[day late].include?(shift_kind.to_s) }
+            unless: -> { %w[day late night].include?(shift_kind.to_s) }
 end

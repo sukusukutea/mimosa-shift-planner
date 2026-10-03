@@ -76,7 +76,12 @@ module ShiftMonthsHelper
   def shift_day_context(data, date, carry_over_state: nil, shift_month: nil)
     pack = shift_day_rows(data, date)
 
-    night_sid = shift_first_staff_id(pack[:night_rows])
+    night_sids =
+      Array(pack[:night_rows]).map do |row|
+        (row["staff_id"] || row[:staff_id]).to_i
+      end.select { |id| id > 0 }
+
+    night_sid = night_sids.first
 
     prev_pack = shift_day_rows(data, date - 1)
     night_off_ids = Array(prev_pack[:night_rows]).map do |row|
@@ -99,9 +104,10 @@ module ShiftMonthsHelper
     {
       **pack,
       night_sid: night_sid.to_i,
+      night_sids: night_sids,
       night_off_sid: night_off_ids.first.to_i,
       night_off_ids: night_off_ids,
-      night_related_ids: ([ night_sid.to_i ] + night_off_ids).uniq
+      night_related_ids: (night_sids + night_off_ids).uniq
     }
   end
 
@@ -147,30 +153,46 @@ module ShiftMonthsHelper
     )
 
     # ① 夜勤明け（前日の夜勤者）が当日に勤務していたら衝突
-    if night_off_id > 0 && today_assigned_ids.include?(night_off_id)
+    night_off_ids =
+      Array(ctx[:night_off_ids])
+        .map(&:to_i)
+        .reject { |id| id <= 0 }
+
+    if (night_off_ids & today_assigned_ids).any?
       msgs << "夜勤明けに勤務が衝突"
     end
 
     # ①-2 夜勤明け（前日の夜勤者）が当日に休日指定されていたら衝突
-    if night_off_id > 0
+    if night_off_ids.any?
       holiday_ids_today = holiday_staff_ids_for(holiday_requests_by_date, date)
-      msgs << "夜勤明けに休日指定が衝突" if holiday_ids_today.include?(night_off_id)
+
+      if (night_off_ids & holiday_ids_today).any?
+        msgs << "夜勤明けに休日指定が衝突"
+      end
     end
 
     # ② 明け翌日の休み（夜勤入りの2日後）：当日に勤務指定が入ってたら衝突
     if designations_by_date.present?
       night_in_day = date - 2
       night_in_ctx = shift_day_context(draft, night_in_day)
-      night_in_sid = night_in_ctx[:night_sid].to_i
 
-      if night_in_sid > 0
+      night_in_ids =
+        Array(night_in_ctx[:night_sids])
+          .map(&:to_i)
+          .reject { |id| id <= 0 }
+
+      if night_in_ids.any?
         desig = designations_by_date[date] || {}
+
         desig_staff_ids =
           desig.values
               .flatten
               .map(&:to_i)
-              .reject { |x| x <= 0 }
-        msgs << "明け翌日休みに勤務指定が衝突" if desig_staff_ids.include?(night_in_sid)
+              .reject { |id| id <= 0 }
+
+        if (night_in_ids & desig_staff_ids).any?
+          msgs << "明け翌日休みに勤務指定が衝突"
+        end
       end
     end
 

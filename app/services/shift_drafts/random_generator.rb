@@ -35,7 +35,7 @@ module ShiftDrafts
       designations.each do |d|
         kind = d.shift_kind.to_s
 
-        if kind == "late" || kind == "day"
+        if kind == "late" || kind == "day" || kind == "night"
           (designations_by_date[d.date][kind] ||= []) << d.staff_id
         else
           designations_by_date[d.date][kind] = d.staff_id
@@ -108,7 +108,7 @@ module ShiftDrafts
           rows = (day_hash[kind] ||= [])
 
           staff_ids =
-            if kind == :late || kind == :day
+            if kind == :late || kind == :day || kind == :night
               Array(sid)
             else
               [ sid ]

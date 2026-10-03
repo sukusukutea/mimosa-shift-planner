@@ -321,13 +321,56 @@ class ShiftMonthsController < ApplicationController
       return
     end
 
+    if kind == "night" && params[:night_action].blank?
+      existing_nights =
+        @shift_month.shift_day_designations
+                    .where(date: date, shift_kind: :night)
+                    .where.not(staff_id: sid)
+                    .order(:id)
+
+      if existing_nights.count == 1
+        existing_staff = current_user.staffs.find_by(id: existing_nights.first.staff_id)
+
+        flash[:conflict] = {
+          kind: "night_already_exists",
+          staff_id: sid,
+          existing_staff_id: existing_nights.first.staff_id,
+          existing_staff_name: [
+            existing_staff&.last_name,
+            existing_staff&.first_name
+          ].compact.join(" "),
+          date: date.iso8601,
+          shift_kind: "night"
+        }
+
+        redirect_to settings_shift_month_path(
+          @shift_month,
+          tab: "daily",
+          date: date.iso8601,
+          designation_staff_id: sid
+        )
+        return
+      end
+
+      if existing_nights.count >= 2
+        redirect_to settings_shift_month_path(
+          @shift_month,
+          tab: "daily",
+          date: date.iso8601,
+          designation_staff_id: sid
+        ), alert: "この日はすでに夜勤者が2名指定されています。"
+        return
+      end
+    end
+
     holiday = @shift_month.staff_holiday_requests.find_by(date: date, staff_id: sid)
     if !force && holiday.present?
       flash[:conflict] = {
         kind: "designation_over_holiday",
         staff_id: sid,
         date: date.iso8601,
-        shift_kind: kind
+        shift_kind: kind,
+        night_action: params[:night_action].presence
       }
       redirect_to settings_shift_month_path(
         @shift_month,
@@ -385,9 +428,62 @@ class ShiftMonthsController < ApplicationController
           else
             @shift_month.shift_day_designations.create!(date: date, shift_kind: "late", staff_id: sid)
           end
+        elsif kind == "night"
+          existing =
+            @shift_month.shift_day_designations
+                        .where(date: date, shift_kind: :night)
+                        .order(:id)
+
+          # その職員が同じ日に別勤務指定されていたら、
+          # 夜勤へ変更するため既存指定を削除
+          @shift_month.shift_day_designations
+                      .where(date: date, staff_id: sid)
+                      .where.not(shift_kind: :night)
+                      .delete_all
+
+          unless existing.exists?(staff_id: sid)
+            case params[:night_action].to_s
+            when "add"
+              if existing.count < 2
+                @shift_month.shift_day_designations.create!(
+                  date: date,
+                  shift_kind: :night,
+                  staff_id: sid
+                )
+              end
+
+            when "replace"
+              if existing.any?
+                existing.first.update!(staff_id: sid)
+              else
+                @shift_month.shift_day_designations.create!(
+                  date: date,
+                  shift_kind: :night,
+                  staff_id: sid
+                )
+              end
+
+            else
+              # 夜勤がまだ誰もいない場合は、通常どおり1人目を登録
+              if existing.none?
+                @shift_month.shift_day_designations.create!(
+                  date: date,
+                  shift_kind: :night,
+                  staff_id: sid
+                )
+              end
+            end
+          end
+
         else
-          # 早/夜勤は1人だけ：同一日・同一kindを上書き
-          record = @shift_month.shift_day_designations.find_or_initialize_by(date: date, shift_kind: kind)
+          # 早番は1人だけ
+          record =
+            @shift_month.shift_day_designations
+                        .find_or_initialize_by(
+                          date: date,
+                          shift_kind: kind
+                        )
+
           record.staff_id = sid
           record.save!
         end
@@ -751,7 +847,14 @@ end
     kind_str = params.require(:kind).to_s
     holiday_type = params[:holiday_type].presence
     staff_id = params.require(:staff_id).to_i
-    ui_wday  = ShiftMonth.ui_wday(date)
+
+    night_action = params[:night_action].to_s
+    night_slot =
+      if params[:night_slot].present?
+        params[:night_slot].to_i
+      end
+
+    ui_wday = ShiftMonth.ui_wday(date)
 
     staff_day_time_option_id =
       if params.key?(:staff_day_time_option_id) && params[:staff_day_time_option_id].present?
@@ -803,16 +906,75 @@ end
 
     third_day = nil
     affected_days = []
+    night_slot_for_create = nil
 
     ShiftDayAssignment.transaction do
       if kind_str == "night"
-        # 夜勤は「その日1枠」扱い：誰であっても一旦消してから入れ直す（A→B置換対応）
-        scope.where(date: date, shift_kind: :night).delete_all
-        scope.where(date: date, staff_id: staff_id, shift_kind: %i[day early late]).delete_all
+        night_rows =
+          scope.where(date: date, shift_kind: :night).order(:slot, :id)
+
+        case night_action
+        when "add"
+          if night_rows.count >= 2
+            raise ActiveRecord::RecordInvalid.new(
+              @shift_month.shift_day_assignments.new.tap do |row|
+                row.errors.add(:base, "夜勤者は2名までです")
+              end
+            )
+          end
+
+          if night_rows.exists?(staff_id: staff_id)
+            raise ActiveRecord::RecordInvalid.new(
+              @shift_month.shift_day_assignments.new.tap do |row|
+                row.errors.add(:base, "この職員はすでに夜勤に入っています")
+              end
+            )
+          end
+
+          used_slots = night_rows.pluck(:slot).map(&:to_i)
+          night_slot_for_create = ([0, 1] - used_slots).first
+
+        when "replace"
+          target_night =
+            night_rows.find_by(slot: night_slot)
+
+          unless target_night
+            raise ActiveRecord::RecordInvalid.new(
+              @shift_month.shift_day_assignments.new.tap do |row|
+                row.errors.add(:base, "変更する夜勤が見つかりません")
+              end
+            )
+          end
+
+          if night_rows.where.not(id: target_night.id).exists?(staff_id: staff_id)
+            raise ActiveRecord::RecordInvalid.new(
+              @shift_month.shift_day_assignments.new.tap do |row|
+                row.errors.add(:base, "この職員はすでに夜勤に入っています")
+              end
+            )
+          end
+
+          night_slot_for_create = target_night.slot
+          target_night.destroy!
+
+        else
+          # 既存画面からの送信との互換用
+          scope.where(date: date, shift_kind: :night).delete_all
+        end
+
+        scope.where(
+          date: date,
+          staff_id: staff_id,
+          shift_kind: %i[day early late]
+        ).delete_all
 
         next_day = date + 1
-        scope.where(date: next_day, staff_id: staff_id, shift_kind: %i[day early late]).delete_all
 
+        scope.where(
+          date: next_day,
+          staff_id: staff_id,
+          shift_kind: %i[day early late]
+        ).delete_all
       elsif kind_str == "off"
         holiday_type_for_save =
           if %w[requested_off paid_leave].include?(holiday_type)
@@ -821,15 +983,38 @@ end
             nil
           end
 
-        # まず、その職員の当日勤務を全部外す
-        scope.where(date: date, staff_id: staff_id, shift_kind: %i[day early late night]).delete_all
+        if night_action == "remove"
+          # 指定された夜勤枠の1人だけ外す
+          target_night =
+            scope.find_by(
+              date: date,
+              shift_kind: :night,
+              slot: night_slot
+            )
 
-        # 「夜勤なし」はstaff_idは0で来るため、当日nightに入っている職員をDBから拾う
-        night_row = scope.find_by(date: date, shift_kind: :night)
-        night_staff_id = night_row&.staff_id
+          unless target_night
+            raise ActiveRecord::RecordInvalid.new(
+              @shift_month.shift_day_assignments.new.tap do |row|
+                row.errors.add(:base, "削除する夜勤が見つかりません")
+              end
+            )
+          end
 
-        # nightを消す
-        scope.where(date: date, shift_kind: :night).delete_all
+          night_staff_id = target_night.staff_id
+          target_night.destroy!
+        else
+          # 従来のoff処理
+          scope.where(
+            date: date,
+            staff_id: staff_id,
+            shift_kind: %i[day early late night]
+          ).delete_all
+
+          night_row = scope.find_by(date: date, shift_kind: :night)
+          night_staff_id = night_row&.staff_id
+
+          scope.where(date: date, shift_kind: :night).delete_all
+        end
 
         if night_staff_id.present?
           # 当日・翌日・3日目（3日目は月内だけ）を「日勤」に入れ直す
@@ -898,8 +1083,14 @@ end
 
       if kind_str != "off"
         kind = kind_str.to_sym
-        max_slot = scope.where(date: date, shift_kind: kind).maximum(:slot)
-        slot = max_slot.to_i + 1
+
+        slot =
+          if kind == :night && !night_slot_for_create.nil?
+            night_slot_for_create
+          else
+            max_slot = scope.where(date: date, shift_kind: kind).maximum(:slot)
+            max_slot.to_i + 1
+          end
 
         day_opt_id =
           if kind == :day
@@ -1022,7 +1213,7 @@ end
     designations_by_date = Hash.new { |h, k| h[k] = {} }
     designations.each do |d|
       kind = d.shift_kind.to_s
-      if kind == "day" || kind == "late"
+      if %w[day late night].include?(kind)
         (designations_by_date[d.date][kind] ||= []) << d.staff_id
       else
         designations_by_date[d.date][kind] = d.staff_id
@@ -1467,10 +1658,9 @@ end
     @designations_by_date = Hash.new { |h, k| h[k] = {} }
     rows.each do |d|
       kind = d.shift_kind.to_s
-      if kind == "day"
-        (@designations_by_date[d.date]["day"] ||= []) << d.staff_id
-      elsif kind == "late"
-        (@designations_by_date[d.date]["late"] ||= []) << d.staff_id
+
+      if %w[day late night].include?(kind)
+        (@designations_by_date[d.date][kind] ||= []) << d.staff_id
       else
         @designations_by_date[d.date][kind] = d.staff_id
       end

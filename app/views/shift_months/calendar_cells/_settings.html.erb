@@ -131,9 +131,12 @@
         <% end %>
       <% end %>
 
-      <% desig_sid = designations_by_date.dig(date, "night").to_i %>
-      <% desig_staff = staff_by_id[desig_sid] %>
-      <% if desig_staff.present? && row_key_for(desig_staff) == row_key %>
+      <% desig_sids = Array(designations_by_date.dig(date, "night")).map(&:to_i) %>
+
+      <% desig_sids.each do |desig_sid| %>
+        <% desig_staff = staff_by_id[desig_sid] %>
+        <% next unless desig_staff.present? && row_key_for(desig_staff) == row_key %>
+
         <div class="small shift-line"><%= desig_staff.last_name %></div>
       <% end %>
     </div>

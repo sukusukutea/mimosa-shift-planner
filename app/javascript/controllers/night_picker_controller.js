@@ -3,11 +3,6 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = ["select", "display", "name"]
 
-  connect() {
-    // 初期状態もselectに合わせて表示（任意だけどおすすめ）
-    if (this.hasSelectTarget) this.syncFromSelect()
-  }
-
   change() {
     this.syncFromSelect()
     this.save()
@@ -31,6 +26,14 @@ export default class extends Controller {
 
     const staffId = parseInt(select.value || "0", 10)
     const date = select.dataset.date
+    const nightAction =
+      staffId > 0
+        ? (select.dataset.nightAction || null)
+        : "remove"
+    const nightSlot =
+      select.dataset.nightSlot !== undefined && select.dataset.nightSlot !== ""
+        ? parseInt(select.dataset.nightSlot, 10)
+        : null
 
     const tokenEl = document.querySelector('meta[name="csrf-token"]')
     const csrfToken = tokenEl ? tokenEl.getAttribute("content") : null
@@ -46,7 +49,9 @@ export default class extends Controller {
         body: JSON.stringify({
           date: date,
           staff_id: staffId,
-          kind: staffId > 0 ? "night" : "off"
+          kind: staffId > 0 ? "night" : "off",
+          night_action: nightAction,
+          night_slot: nightSlot
         })
       })
 
