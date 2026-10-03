@@ -116,7 +116,12 @@
       <div class="d-flex gap-2 align-items-end">
         <div class="flex-grow-1">
           <%= select_tag "designation[shift_kind]",
-              options_for_select([["日勤","day"], ["早番","early"], ["遅番","late"], ["夜勤","night"]]),
+              options_for_select([
+                ["日勤","day"],
+                ["早番","early"],
+                ["遅番","late"],
+                ["夜勤","night"]
+              ]),
               include_blank: "勤務を選択",
               class: "form-select form-select-sm" %>
         </div>
@@ -179,13 +184,12 @@
       勤務形態(<%= @selected_date.strftime("%Y年%-m月%-d日") %>)
     </p>
 
-    <% ShiftMonth::SHIFT_KINDS.each do |kind| %>
+    <% ShiftMonth::SHIFT_KINDS.reject { |kind| kind == :night }.each do |kind| %>
       <% label =
         case kind
         when :day    then "日勤"
         when :early  then "早番"
         when :late   then "遅番"
-        when :night  then "夜勤"
         else kind.to_s
         end
       %>
