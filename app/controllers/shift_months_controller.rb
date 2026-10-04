@@ -827,6 +827,7 @@ end
 
     ensure_default_late_time_option!
     prepare_calendar_page(assignments_hash: @draft)
+    @client_edit_clients = current_user.clients.active.ordered
 
     @holiday_requests_by_date =
       @shift_month.staff_holiday_requests
@@ -1431,7 +1432,7 @@ end
     service_kind = params[:client_service_kind].to_s
 
     unless %w[day_service visit stay].include?(service_kind)
-      redirect_to settings_shift_month_path(@shift_month, side: "client", client_id: client.id),
+      redirect_to client_schedule_return_path(client_id: client.id),
                   alert: "予定種別が不正です。"
       return
     end
@@ -1444,35 +1445,37 @@ end
 
     month_begin = Date.new(@shift_month.year, @shift_month.month, 1)
     month_end = month_begin.end_of_month
-    dates = dates.select { |date| date.between?(month_begin, month_end) }.uniq.sort
+
+    dates =
+      dates
+        .select { |date| date.between?(month_begin, month_end) }
+        .uniq
+        .sort
 
     if service_kind == "stay" && !consecutive_dates?(dates)
-      redirect_to settings_shift_month_path(
-        @shift_month,
-        side: "client",
+      redirect_to client_schedule_return_path(
         client_id: client.id,
-        client_service_kind: service_kind
+        service_kind: service_kind
       ), alert: "泊まりは、連続した日付を2日以上選択してください。"
       return
     end
 
     if dates.blank?
-      redirect_to settings_shift_month_path(
-        @shift_month,
-        side: "client",
+      redirect_to client_schedule_return_path(
         client_id: client.id,
-        client_service_kind: service_kind
+        service_kind: service_kind
       ), alert: "日付を選択してください。"
       return
     end
 
     ActiveRecord::Base.transaction do
       dates.each do |date|
-        schedule = @shift_month.shift_month_client_schedules.find_or_initialize_by(
-          client: client,
-          date: date,
-          service_kind: service_kind
-        )
+        schedule =
+          @shift_month.shift_month_client_schedules.find_or_initialize_by(
+            client: client,
+            date: date,
+            service_kind: service_kind
+          )
 
         next if schedule.persisted? && schedule.active?
 
@@ -1481,21 +1484,55 @@ end
         schedule.active = true
         schedule.save!
       end
-
-      sync_night_styles! if service_kind == "stay"
     end
 
-    redirect_to settings_shift_month_path(
-      @shift_month,
-      side: "client",
-      client_id: client.id,
-      client_service_kind: service_kind
-    ), notice: "利用者予定を追加しました。"
+    if request.format.json?
+      build_calendar_vars
+
+      updated_date = dates.first
+      client_schedule = @client_schedules_by_date[updated_date] || {}
+
+      day_service_rows = Array(client_schedule["day_service"])
+      stay_rows = Array(client_schedule["stay"])
+      visit_rows = Array(client_schedule["visit"])
+      has_stay = stay_rows.any?
+
+      cell_html = render_to_string(
+        partial: "shift_months/client_schedule_cells/edit",
+        formats: [:html],
+        locals: {
+          day_service_rows: day_service_rows,
+          stay_rows: stay_rows,
+          visit_rows: visit_rows,
+          has_stay: has_stay,
+          date: updated_date,
+          shift_month: @shift_month,
+          client_edit_clients: current_user.clients.active.ordered
+        }
+      )
+
+      render json: {
+        ok: true,
+        date: updated_date.iso8601,
+        cell_html: cell_html
+      }
+    elsif params[:return_to] == "edit_draft"
+      redirect_to client_schedule_return_path(
+        client_id: client.id,
+        service_kind: service_kind
+      )
+    else
+      redirect_to client_schedule_return_path(
+        client_id: client.id,
+        service_kind: service_kind
+      ), notice: "利用者予定を追加しました。"
+    end
+
   rescue ActiveRecord::RecordNotFound
-    redirect_to settings_shift_month_path(@shift_month, side: "client"),
+    redirect_to client_schedule_return_path,
                 alert: "利用者が見つかりません。"
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to settings_shift_month_path(@shift_month, side: "client"),
+    redirect_to client_schedule_return_path,
                 alert: "利用者予定の追加に失敗しました：#{e.record.errors.full_messages.join(", ")}"
   end
 
@@ -1510,13 +1547,22 @@ end
     first_schedule = schedules.order(:date, :id).first
 
     if first_schedule.blank?
-      redirect_to settings_shift_month_path(@shift_month, side: "client"),
-                  alert: "利用者予定が見つかりません。"
+      if request.format.json?
+        render json: {
+          ok: false,
+          error: "利用者予定が見つかりません。"
+        }, status: :not_found
+      else
+        redirect_to settings_shift_month_path(@shift_month, side: "client"),
+                    alert: "利用者予定が見つかりません。"
+      end
+
       return
     end
 
     client_id = first_schedule.client_id
     service_kind = first_schedule.service_kind
+    updated_date = first_schedule.date
 
     ActiveRecord::Base.transaction do
       schedules.update_all(
@@ -1528,12 +1574,43 @@ end
       sync_night_styles! if service_kind == "stay"
     end
 
-    redirect_to settings_shift_month_path(
-      @shift_month,
-      side: "client",
-      client_id: client_id,
-      client_service_kind: service_kind
-    ), notice: "利用者予定を削除しました。"
+    if request.format.json?
+      build_calendar_vars
+
+      client_schedule = @client_schedules_by_date[updated_date] || {}
+
+      day_service_rows = Array(client_schedule["day_service"])
+      stay_rows = Array(client_schedule["stay"])
+      visit_rows = Array(client_schedule["visit"])
+      has_stay = stay_rows.any?
+
+      cell_html = render_to_string(
+        partial: "shift_months/client_schedule_cells/edit",
+        formats: [:html],
+        locals: {
+          day_service_rows: day_service_rows,
+          stay_rows: stay_rows,
+          visit_rows: visit_rows,
+          has_stay: has_stay,
+          date: updated_date,
+          shift_month: @shift_month,
+          client_edit_clients: current_user.clients.active.ordered
+        }
+      )
+
+      render json: {
+        ok: true,
+        date: updated_date.iso8601,
+        cell_html: cell_html
+      }
+    else
+      redirect_to settings_shift_month_path(
+        @shift_month,
+        side: "client",
+        client_id: client_id,
+        client_service_kind: service_kind
+      ), notice: "利用者予定を削除しました。"
+    end
   end
 
   private
@@ -1861,12 +1938,14 @@ end
         schedules_by_date[schedule.date]["stay"] << {
           name: stay_display_name(schedule, stay_info),
           client_id: schedule.client_id,
+          schedule_id: schedule.id,
           stay_position: stay_info[:position]
         }
       else
         schedules_by_date[schedule.date][schedule.service_kind] << {
           name: schedule.client_display_name,
           client_id: schedule.client_id,
+          schedule_id: schedule.id,
           source: schedule.source
         }
       end
@@ -2451,6 +2530,19 @@ end
 
       style.enabled = should_enable
       style.save!
+    end
+  end
+
+  def client_schedule_return_path(client_id: nil, service_kind: nil)
+    if params[:return_to] == "edit_draft"
+      edit_draft_shift_month_path(@shift_month)
+    else
+      settings_shift_month_path(
+        @shift_month,
+        side: "client",
+        client_id: client_id,
+        client_service_kind: service_kind
+      )
     end
   end
 end

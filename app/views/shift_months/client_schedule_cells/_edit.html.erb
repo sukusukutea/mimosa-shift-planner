@@ -1,0 +1,122 @@
+<% client_edit_clients =
+     local_assigns.fetch(:client_edit_clients, @client_edit_clients || []) || [] %>
+
+<div class="client-schedule-slots">
+
+  <%# =========================
+      通い
+  ========================== %>
+  <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+
+    <% if day_service_rows.any? %>
+      <div class="client-schedule-names">
+
+        <% day_service_rows.each do |row| %>
+
+          <% if row[:schedule_id].present? && !row[:stay_start] %>
+            <div class="client-schedule-edit-row"
+                 data-controller="client-schedule-edit">
+
+              <div class="client-schedule-edit-display">
+                <span class="client-schedule-name">
+                  <%= row[:name] %>
+                </span>
+              </div>
+
+              <select
+                class="client-schedule-edit-select"
+                data-action="change->client-schedule-edit#changeExisting"
+                data-schedule-id="<%= row[:schedule_id] %>"
+                data-delete-url="<%= remove_client_schedule_shift_month_path(shift_month) %>">
+
+                <option value="keep" selected>
+                  <%= row[:name] %>
+                </option>
+
+                <option value="delete">
+                  削除する
+                </option>
+              </select>
+            </div>
+
+          <% else %>
+            <div class="client-schedule-name <%= "client-schedule-name-stay-start" if row[:stay_start] %>">
+              <%= row[:name] %>
+            </div>
+          <% end %>
+
+        <% end %>
+
+      </div>
+    <% end %>
+
+    <% day_service_client_ids =
+         day_service_rows.map { |row| row[:client_id].to_i } %>
+
+    <div class="client-schedule-add">
+      <span>＋追加</span>
+
+      <select
+        class="client-schedule-add-select"
+        data-controller="client-schedule-edit"
+        data-action="change->client-schedule-edit#add"
+        data-update-url="<%= bulk_add_client_schedules_shift_month_path(shift_month) %>"
+        data-date="<%= date.iso8601 %>"
+        data-service-kind="day_service">
+
+        <option value="">利用者を選択</option>
+
+        <% client_edit_clients.each do |client| %>
+          <% next if day_service_client_ids.include?(client.id) %>
+
+          <option value="<%= client.id %>">
+            <%= client.display_name %>
+          </option>
+        <% end %>
+
+      </select>
+    </div>
+
+  </div>
+
+
+  <%# =========================
+      泊まり
+  ========================== %>
+  <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+
+    <% if stay_rows.any? %>
+      <div class="client-schedule-names">
+        <% stay_rows.each do |row| %>
+          <div class="client-schedule-name">
+            <%= row[:name] %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="client-schedule-empty">-</div>
+    <% end %>
+
+  </div>
+
+
+  <%# =========================
+      訪問
+  ========================== %>
+  <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+
+    <% if visit_rows.any? %>
+      <div class="client-schedule-names">
+        <% visit_rows.each do |row| %>
+          <div class="client-schedule-name">
+            <%= row[:name] %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="client-schedule-empty">-</div>
+    <% end %>
+
+  </div>
+
+</div>

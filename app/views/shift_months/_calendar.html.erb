@@ -22,6 +22,8 @@
 <% unassigned_display_staffs_by_date = local_assigns.fetch(:unassigned_display_staffs_by_date, nil) %>
 <% previous_month_unassigned_display_staffs_by_date = local_assigns.fetch(:previous_month_unassigned_display_staffs_by_date, @previous_month_unassigned_display_staffs_by_date || {}) || {} %>
 <% carry_over_state                 = local_assigns.fetch(:carry_over_state, {}) || {} %>
+<% client_schedule_editable         = local_assigns.fetch(:client_schedule_editable, false) %>
+<% client_edit_clients = local_assigns.fetch(:client_edit_clients, []) || [] %>
 <% previous_month_assignments_for_display = local_assigns.fetch(:previous_month_assignments_for_display, @previous_month_assignments_for_display || {}) || {} %>
 <% extra                            = local_assigns[:extra_locals].is_a?(Hash) ? local_assigns[:extra_locals] : {} %>
 
@@ -90,50 +92,23 @@
             <% visit_rows = Array(client_schedule["visit"]) %>
             <% has_stay = stay_rows.any? %>
 
-            <td class="day-cell client-schedule-cell <%= in_month ? "" : "is-out is-show-out" %>">
-              <div class="client-schedule-slots">
-                <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
-                  <% if day_service_rows.any? %>
-                    <div class="client-schedule-names">
-                      <% day_service_rows.each do |row| %>
-                        <div class="client-schedule-name <%= row[:stay_start] ? "client-schedule-name-stay-start" : "" %>">
-                          <%= row[:name] %>
-                        </div>
-                      <% end %>
-                    </div>
-                  <% else %>
-                    <div class="client-schedule-empty">-</div>
-                  <% end %>
-                </div>
-
-                <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
-                  <% if stay_rows.any? %>
-                    <div class="client-schedule-names">
-                      <% stay_rows.each do |row| %>
-                        <div class="client-schedule-name">
-                          <%= row[:name] %>
-                        </div>
-                      <% end %>
-                    </div>
-                  <% else %>
-                    <div class="client-schedule-empty">-</div>
-                  <% end %>
-                </div>
-
-                <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
-                  <% if visit_rows.any? %>
-                    <div class="client-schedule-names">
-                      <% visit_rows.each do |row| %>
-                        <div class="client-schedule-name">
-                          <%= row[:name] %>
-                        </div>
-                      <% end %>
-                    </div>
-                  <% else %>
-                    <div class="client-schedule-empty">-</div>
-                  <% end %>
-                </div>
-              </div>
+            <td id="client-schedule-cell-<%= date.iso8601 %>"
+              class="day-cell client-schedule-cell <%= in_month ? "" : "is-out is-show-out" %>">
+              <% if client_schedule_editable && in_month %>
+                <%= render "shift_months/client_schedule_cells/edit",
+                          day_service_rows: day_service_rows,
+                          stay_rows: stay_rows,
+                          visit_rows: visit_rows,
+                          has_stay: has_stay,
+                          date: date,
+                          shift_month: shift_month %>
+              <% else %>
+                <%= render "shift_months/client_schedule_cells/display",
+                          day_service_rows: day_service_rows,
+                          stay_rows: stay_rows,
+                          visit_rows: visit_rows,
+                          has_stay: has_stay %>
+              <% end %>
             </td>
           <% end %>
         </tr>

@@ -240,6 +240,53 @@
   border-left: none;
 }
 
+.client-schedule-add {
+  position: relative;
+  font-size: 8px;
+  line-height: 1.1;
+  text-align: left;
+  cursor: pointer;
+}
+
+.client-schedule-add-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.client-schedule-add:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.client-schedule-edit-row {
+  position: relative;
+  width: 100%;
+  cursor: pointer;
+}
+
+.client-schedule-edit-display {
+  line-height: 1.1;
+  pointer-events: none;
+}
+
+.client-schedule-edit-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.client-schedule-edit-row:hover .client-schedule-edit-display {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
 .work-kind-row th,
 .work-kind-row td {
   height: 22px;
