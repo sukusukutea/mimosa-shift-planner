@@ -1484,37 +1484,56 @@ end
         schedule.active = true
         schedule.save!
       end
+
+      sync_night_styles! if service_kind == "stay"
     end
 
     if request.format.json?
       build_calendar_vars
 
-      updated_date = dates.first
-      client_schedule = @client_schedules_by_date[updated_date] || {}
+      updated_dates =
+        if service_kind == "stay"
+          month_begin.upto(month_end).to_a
+        else
+          [dates.first]
+        end
 
-      day_service_rows = Array(client_schedule["day_service"])
-      stay_rows = Array(client_schedule["stay"])
-      visit_rows = Array(client_schedule["visit"])
-      has_stay = stay_rows.any?
+      cells = updated_dates.each_with_object({}) do |updated_date, hash|
+        client_schedule = @client_schedules_by_date[updated_date] || {}
 
-      cell_html = render_to_string(
-        partial: "shift_months/client_schedule_cells/edit",
-        formats: [:html],
-        locals: {
-          day_service_rows: day_service_rows,
-          stay_rows: stay_rows,
-          visit_rows: visit_rows,
-          has_stay: has_stay,
-          date: updated_date,
-          shift_month: @shift_month,
-          client_edit_clients: current_user.clients.active.ordered
-        }
-      )
+        day_service_rows = Array(client_schedule["day_service"])
+        stay_rows = Array(client_schedule["stay"])
+        visit_rows = Array(client_schedule["visit"])
+        has_stay = stay_rows.any?
+
+        hash[updated_date.iso8601] = render_to_string(
+          partial: "shift_months/client_schedule_cells/edit",
+          formats: [:html],
+          locals: {
+            day_service_rows: day_service_rows,
+            stay_rows: stay_rows,
+            visit_rows: visit_rows,
+            has_stay: has_stay,
+            date: updated_date,
+            shift_month: @shift_month,
+            client_edit_clients: current_user.clients.active.ordered
+          }
+        )
+      end
+
+      first_date = dates.first
+
+      night_enabled_by_date =
+        month_begin.upto(month_end).each_with_object({}) do |date, hash|
+          hash[date.iso8601] = !!@night_enabled_by_date[date]
+        end
 
       render json: {
         ok: true,
-        date: updated_date.iso8601,
-        cell_html: cell_html
+        date: first_date.iso8601,
+        cell_html: cells[first_date.iso8601],
+        cells: cells,
+        night_enabled_by_date: night_enabled_by_date
       }
     elsif params[:return_to] == "edit_draft"
       redirect_to client_schedule_return_path(
@@ -1577,31 +1596,50 @@ end
     if request.format.json?
       build_calendar_vars
 
-      client_schedule = @client_schedules_by_date[updated_date] || {}
+      month_begin = Date.new(@shift_month.year, @shift_month.month, 1)
+      month_end = month_begin.end_of_month
 
-      day_service_rows = Array(client_schedule["day_service"])
-      stay_rows = Array(client_schedule["stay"])
-      visit_rows = Array(client_schedule["visit"])
-      has_stay = stay_rows.any?
+      updated_dates =
+        if service_kind == "stay"
+          month_begin.upto(month_end).to_a
+        else
+          [updated_date]
+        end
 
-      cell_html = render_to_string(
-        partial: "shift_months/client_schedule_cells/edit",
-        formats: [:html],
-        locals: {
-          day_service_rows: day_service_rows,
-          stay_rows: stay_rows,
-          visit_rows: visit_rows,
-          has_stay: has_stay,
-          date: updated_date,
-          shift_month: @shift_month,
-          client_edit_clients: current_user.clients.active.ordered
-        }
-      )
+      cells = updated_dates.each_with_object({}) do |date, hash|
+        client_schedule = @client_schedules_by_date[date] || {}
+
+        day_service_rows = Array(client_schedule["day_service"])
+        stay_rows = Array(client_schedule["stay"])
+        visit_rows = Array(client_schedule["visit"])
+        has_stay = stay_rows.any?
+
+        hash[date.iso8601] = render_to_string(
+          partial: "shift_months/client_schedule_cells/edit",
+          formats: [:html],
+          locals: {
+            day_service_rows: day_service_rows,
+            stay_rows: stay_rows,
+            visit_rows: visit_rows,
+            has_stay: has_stay,
+            date: date,
+            shift_month: @shift_month,
+            client_edit_clients: current_user.clients.active.ordered
+          }
+        )
+      end
+
+      night_enabled_by_date =
+        month_begin.upto(month_end).each_with_object({}) do |date, hash|
+          hash[date.iso8601] = !!@night_enabled_by_date[date]
+        end
 
       render json: {
         ok: true,
         date: updated_date.iso8601,
-        cell_html: cell_html
+        cell_html: cells[updated_date.iso8601],
+        cells: cells,
+        night_enabled_by_date: night_enabled_by_date
       }
     else
       redirect_to settings_shift_month_path(
@@ -1838,7 +1876,8 @@ end
           hash[[client_id, schedule.date]] = {
             start_date: range[:start_date],
             end_date: range[:end_date],
-            position: position
+            position: position,
+            schedule_ids: range[:schedules].map(&:id)
           }
         end
       end
@@ -1939,6 +1978,7 @@ end
           name: stay_display_name(schedule, stay_info),
           client_id: schedule.client_id,
           schedule_id: schedule.id,
+          schedule_ids: stay_info[:schedule_ids],
           stay_position: stay_info[:position]
         }
       else
@@ -2510,7 +2550,28 @@ end
     night_dates.merge(designation_night_dates)
 
     # -------------------------
-    # ③ 最終的なON/OFFを保存
+    # ③ 実際に夜勤者がいる日も夜勤ONにする
+    # -------------------------
+    assignment_scope =
+      @shift_month.shift_day_assignments
+                  .where(
+                    shift_kind: :night,
+                    date: month_begin..month_end
+                  )
+
+    draft_token = session[draft_token_session_key]
+
+    assignment_scope =
+      if draft_token.present?
+        assignment_scope.draft.where(draft_token: draft_token)
+      else
+        assignment_scope.confirmed
+      end
+
+    night_dates.merge(assignment_scope.pluck(:date))
+
+    # -------------------------
+    # ④ 最終的なON/OFFを保存
     # -------------------------
     (month_begin..month_end).each do |date|
       setting =

@@ -125,7 +125,10 @@
             <td class="day-head work-kind-cell <%= in_month ? "" : "is-out" %>">
               <div class="day-kinds">
                 <div class="kcell <%= day_on ? "" : "is-disabled" %>">日勤</div>
-                <div class="kcell <%= night_on ? "is-night-on" : "is-disabled" %>">夜勤</div>
+                <div id="night-kind-<%= date.iso8601 %>"
+                  class="kcell <%= night_on ? "is-night-on" : "is-disabled" %>">
+                  夜勤
+                </div>
                 <div class="kcell">宿直</div>
               </div>
             </td>
