@@ -1161,13 +1161,79 @@ end
     @stats_rows = ShiftDrafts::StatsBuilder.new(
       shift_month: @shift_month,
       staff_by_id: @staff_by_id,
-      draft: @draft
+      draft: @draft,
+      carry_over_state: @carry_over_state
     ).call
+
+    # 右サイドバー用：手修正後も週ごとの勤務集計を作り直す
+    prev_month_date = month_begin.prev_month
+
+    prev_shift_month =
+      @shift_month.user.shift_months.find_by(
+        year: prev_month_date.year,
+        month: prev_month_date.month
+      )
+
+    previous_stats_assignments =
+      if prev_shift_month.present?
+        prev_shift_month.shift_day_assignments
+                        .confirmed
+                        .where(
+                          date: (calendar_begin - 1)...month_begin
+                        )
+      else
+        ShiftDayAssignment.none
+      end
+
+    previous_stats_hash =
+      build_assignments_hash(previous_stats_assignments)
+
+    # 前月部分は確定シフトを優先する
+    stats_assignments_hash =
+      @draft.merge(previous_stats_hash)
+
+    weeks = dates.each_slice(7).to_a
+
+    @stats_periods = [
+      {
+        key: "month",
+        label: "月全体",
+        stats_rows: @stats_rows
+      }
+    ]
+
+    weeks.each_with_index do |week, index|
+      week_dates =
+        week.select do |week_date|
+          week_date <= month_end
+        end
+
+      next if week_dates.empty?
+
+      week_stats_rows =
+        ShiftDrafts::StatsBuilder.new(
+          shift_month: @shift_month,
+          staff_by_id: @staff_by_id,
+          draft: stats_assignments_hash,
+          dates: week_dates,
+          check_shortages: false
+        ).call
+
+      @stats_periods << {
+        key: "week_#{index + 1}",
+        label: "第#{index + 1}週 #{week_dates.first.month}/#{week_dates.first.day}〜#{week_dates.last.month}/#{week_dates.last.day}",
+        stats_rows: week_stats_rows
+      }
+    end
 
     stats_html = render_to_string(
       partial: "shift_months/draft_sidebar",
       formats: [ :html ],
-      locals: { stats_rows: @stats_rows, shift_month: @shift_month }
+      locals: {
+        stats_rows: @stats_rows,
+        stats_periods: @stats_periods,
+        shift_month: @shift_month
+      }
     )
 
     enabled_maps = @shift_month.enabled_map_for_range(dates)
@@ -2062,6 +2128,68 @@ end
       draft: assignments_hash,
       carry_over_state: @carry_over_state
     ).call
+
+    # 右サイドバー用：月全体＋週ごとの勤務集計
+    prev_month_date = @month_begin.prev_month
+
+    prev_shift_month =
+      @shift_month.user.shift_months.find_by(
+        year: prev_month_date.year,
+        month: prev_month_date.month
+      )
+
+    # 第1週の月曜日が夜勤明けになるケースも拾うため、
+    # カレンダー開始日の前日まで取得する
+    previous_stats_assignments =
+      if prev_shift_month.present?
+        prev_shift_month.shift_day_assignments
+                        .confirmed
+                        .where(
+                          date: (@calendar_begin - 1)...@month_begin
+                        )
+      else
+        ShiftDayAssignment.none
+      end
+
+    previous_stats_hash =
+      build_assignments_hash(previous_stats_assignments)
+
+    stats_assignments_hash =
+      assignments_hash.merge(previous_stats_hash)
+
+    @stats_periods = [
+      {
+        key: "month",
+        label: "月全体",
+        stats_rows: @stats_rows
+      }
+    ]
+
+    @weeks.each_with_index do |week, index|
+      # 第1週は前月部分も含める。
+      # 最終週は翌月部分を含めず、当月末までとする。
+      week_dates =
+        week.select do |date|
+          date <= @month_end
+        end
+
+      next if week_dates.empty?
+
+      week_stats_rows =
+        ShiftDrafts::StatsBuilder.new(
+          shift_month: @shift_month,
+          staff_by_id: @staff_by_id,
+          draft: stats_assignments_hash,
+          dates: week_dates,
+          check_shortages: false
+        ).call
+
+      @stats_periods << {
+        key: "week_#{index + 1}",
+        label: "第#{index + 1}週 #{week_dates.first.month}/#{week_dates.first.day}〜#{week_dates.last.month}/#{week_dates.last.day}",
+        stats_rows: week_stats_rows
+      }
+    end
 
     alert_dates = (@month_begin..@month_end).to_a
     @alerts_by_date = ShiftDrafts::AlertsBuilder.new(
