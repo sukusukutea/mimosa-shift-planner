@@ -54,7 +54,7 @@
          day_service_rows.map { |row| row[:client_id].to_i } %>
 
     <div class="client-schedule-add">
-      <span>＋追加</span>
+      <span>＋</span>
 
       <select
         class="client-schedule-add-select"
@@ -108,15 +108,60 @@
     <% if visit_rows.any? %>
       <div class="client-schedule-names">
         <% visit_rows.each do |row| %>
-          <div class="client-schedule-name">
-            <%= row[:name] %>
+          <div class="client-schedule-edit-row"
+              data-controller="client-schedule-edit">
+
+            <div class="client-schedule-edit-display">
+              <span class="client-schedule-name">
+                <%= row[:name] %>
+              </span>
+            </div>
+
+            <select
+              class="client-schedule-edit-select"
+              data-action="change->client-schedule-edit#changeExisting"
+              data-schedule-id="<%= row[:schedule_id] %>"
+              data-delete-url="<%= remove_client_schedule_shift_month_path(shift_month) %>">
+
+              <option value="keep" selected>
+                <%= row[:name] %>
+              </option>
+
+              <option value="delete">
+                削除する
+              </option>
+            </select>
+
           </div>
         <% end %>
       </div>
-    <% else %>
-      <div class="client-schedule-empty">-</div>
     <% end %>
 
-  </div>
+    <% visit_client_ids =
+        visit_rows.map { |row| row[:client_id].to_i } %>
 
+    <div class="client-schedule-add">
+      <span>＋</span>
+
+      <select
+        class="client-schedule-add-select"
+        data-controller="client-schedule-edit"
+        data-action="change->client-schedule-edit#add"
+        data-update-url="<%= bulk_add_client_schedules_shift_month_path(shift_month) %>"
+        data-date="<%= date.iso8601 %>"
+        data-service-kind="visit">
+
+        <option value="">利用者を選択</option>
+
+        <% client_edit_clients.each do |client| %>
+          <% next if visit_client_ids.include?(client.id) %>
+
+          <option value="<%= client.id %>">
+            <%= client.display_name %>
+          </option>
+        <% end %>
+
+      </select>
+    </div>
+  </div>
 </div>
