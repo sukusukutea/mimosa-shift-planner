@@ -628,7 +628,12 @@ module ShiftExports
       late_rows  = day_hash["late"]  || day_hash[:late]  || []
       night_rows = day_hash["night"] || day_hash[:night] || []
 
-      night_sid = first_staff_id(night_rows)
+      night_sids =
+        Array(night_rows).map do |row|
+          (row["staff_id"] || row[:staff_id]).to_i
+        end.select { |id| id > 0 }
+
+      night_sid = night_sids.first
 
       prev_hash = (assignments_hash || {})[(date - 1).iso8601] || {}
       prev_night_rows = prev_hash["night"] || prev_hash[:night] || []
@@ -653,8 +658,9 @@ module ShiftExports
         late_rows: late_rows,
         night_rows: night_rows,
         night_sid: night_sid.to_i,
+        night_sids: night_sids,
         night_off_ids: night_off_ids,
-        night_related_ids: ([ night_sid.to_i ] + night_off_ids).uniq
+        night_related_ids: (night_sids + night_off_ids).uniq
       }
     end
 

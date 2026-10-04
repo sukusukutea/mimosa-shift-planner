@@ -1,73 +1,115 @@
-<div class="p-2">
+<%
+  periods =
+    local_assigns[:stats_periods].presence ||
+    @stats_periods.presence ||
+    [
+      {
+        key: "month",
+        label: "月全体",
+        stats_rows: stats_rows
+      }
+    ]
+%>
+
+<div class="p-2"
+     data-controller="stats-period">
+
   <div class="fw-bold mb-2">職員状況</div>
 
-  <table class="table table-sm staff-stats-table">
-    <thead>
-      <tr>
-        <th>職員</th>
-        <th>日勤</th>
-        <th>早番</th>
-        <th>遅番</th>
-        <th>夜勤</th>
-        <th>休日</th>
-        <th>有休</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% sorted_rows =
-          stats_rows
-            .select { |row| (s = row[:staff]) && s.active? }
-            .sort_by do |row|
-              staff = row[:staff]
-
-              constraint_order =
-                case staff.workday_constraint.to_s
-                when "free"
-                  0
-                when "weekly"
-                  1
-                when "fixed"
-                  2
-                else
-                  3
-                end
-
-              [
-                constraint_order,
-                staff.last_name_kana.to_s,
-                staff.first_name_kana.to_s,
-                staff.id.to_i
-              ]
-            end
-      %>
-      <% sorted_rows.each do |row| %>
-        <tr class="<%= 
-            case row[:staff].workday_constraint.to_s
-            when 'weekly'
-              'weekly-staff-row'
-            when 'fixed'
-              'fixed-staff-row'
-            else
-              ''
-            end
-          %>">
-          <% weekly_shortage = row[:weekly_shortage] %>
-          <% weekly_weeks = Array(row[:weekly_shortage_weeks]) %>
-
-          <td class="<%= weekly_shortage ? 'bg-danger-subtle text-danger' : '' %>"
-              title="<%= weekly_shortage ? "週勤務が未達成の週あり（不足: #{weekly_weeks.map { |n| "第#{n}週" }.join('、')}）" : '' %>">
-            <%= row[:staff].last_name %> <%= row[:staff].first_name %>
-          </td>
-          <td><%= row[:day] %></td>
-          <td><%= row[:early] %></td>
-          <td><%= row[:late] %></td>
-          <td><%= row[:night] %></td>
-          <td class="<%= row[:holiday_shortage] ? 'bg-danger-subtle text-danger fw-bold' : '' %>">
-            <%= row[:holiday] %>
-          </td>
-          <td><%= row[:paid_leave] %></td>
-        </tr>
+  <div class="mb-2">
+    <select class="form-select form-select-sm"
+            data-stats-period-target="select"
+            data-action="change->stats-period#change">
+      <% periods.each do |period| %>
+        <option value="<%= period[:key] %>">
+          <%= period[:label] %>
+        </option>
       <% end %>
-    </tbody>
-  </table>
+    </select>
+  </div>
+
+  <% periods.each_with_index do |period, index| %>
+    <div data-stats-period-target="period"
+         data-period-key="<%= period[:key] %>"
+         class="<%= 'd-none' unless index.zero? %>">
+
+      <table class="table table-sm staff-stats-table">
+        <thead>
+          <tr>
+            <th>職員</th>
+            <th>日勤</th>
+            <th>早番</th>
+            <th>遅番</th>
+            <th>夜勤</th>
+            <th>休日</th>
+            <th>有休</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          <%
+            sorted_rows =
+              period[:stats_rows]
+                .select { |row| (s = row[:staff]) && s.active? }
+                .sort_by do |row|
+                  staff = row[:staff]
+
+                  constraint_order =
+                    case staff.workday_constraint.to_s
+                    when "free"
+                      0
+                    when "weekly"
+                      1
+                    when "fixed"
+                      2
+                    else
+                      3
+                    end
+
+                  [
+                    constraint_order,
+                    staff.last_name_kana.to_s,
+                    staff.first_name_kana.to_s,
+                    staff.id.to_i
+                  ]
+                end
+          %>
+
+          <% sorted_rows.each do |row| %>
+            <tr class="<%=
+              case row[:staff].workday_constraint.to_s
+              when 'weekly'
+                'weekly-staff-row'
+              when 'fixed'
+                'fixed-staff-row'
+              else
+                ''
+              end
+            %>">
+
+              <% weekly_shortage = row[:weekly_shortage] %>
+              <% weekly_weeks = Array(row[:weekly_shortage_weeks]) %>
+
+              <td class="<%= weekly_shortage ? 'bg-danger-subtle text-danger' : '' %>"
+                  title="<%= weekly_shortage ? "週勤務が未達成の週あり（不足: #{weekly_weeks.map { |n| "第#{n}週" }.join('、')}）" : '' %>">
+                <%= row[:staff].last_name %> <%= row[:staff].first_name %>
+              </td>
+
+              <td><%= row[:day] %></td>
+              <td><%= row[:early] %></td>
+              <td><%= row[:late] %></td>
+              <td><%= row[:night] %></td>
+
+              <td class="<%= row[:holiday_shortage] ? 'bg-danger-subtle text-danger fw-bold' : '' %>">
+                <%= row[:holiday] %>
+              </td>
+
+              <td><%= row[:paid_leave] %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+    </div>
+  <% end %>
 </div>

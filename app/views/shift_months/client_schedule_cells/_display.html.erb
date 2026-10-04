@@ -1,0 +1,43 @@
+<div class="client-schedule-slots">
+  <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+    <% if day_service_rows.any? %>
+      <div class="client-schedule-names">
+        <% day_service_rows.each do |row| %>
+          <div class="client-schedule-name <%= row[:stay_start] ? "client-schedule-name-stay-start" : "" %>">
+            <%= row[:name] %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="client-schedule-empty">-</div>
+    <% end %>
+  </div>
+
+  <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+    <% if stay_rows.any? %>
+      <div class="client-schedule-names">
+        <% stay_rows.each do |row| %>
+          <div class="client-schedule-name">
+            <%= row[:name] %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="client-schedule-empty">-</div>
+    <% end %>
+  </div>
+
+  <div class="client-schedule-slot <%= "client-schedule-slot-stay-filled" if has_stay %>">
+    <% if visit_rows.any? %>
+      <div class="client-schedule-names">
+        <% visit_rows.each do |row| %>
+          <div class="client-schedule-name">
+            <%= row[:name] %>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <div class="client-schedule-empty">-</div>
+    <% end %>
+  </div>
+</div>

@@ -4,35 +4,41 @@
 
 import { application } from "./application"
 
+import ClientScheduleEditController from "./client_schedule_edit_controller"
+application.register("client-schedule-edit", ClientScheduleEditController)
+
+import DailyController from "./daily_controller"
+application.register("daily", DailyController)
+
+import DayoptWdaysController from "./dayopt_wdays_controller"
+application.register("dayopt-wdays", DayoptWdaysController)
+
+import DragScrollController from "./drag_scroll_controller"
+application.register("drag-scroll", DragScrollController)
+
 import FlashController from "./flash_controller"
 application.register("flash", FlashController)
 
 import HelloController from "./hello_controller"
 application.register("hello", HelloController)
 
-import DragScrollController from "./drag_scroll_controller"
-application.register("drag-scroll", DragScrollController)
+import HolidayMultiSelectController from "./holiday_multi_select_controller"
+application.register("holiday-multi-select", HolidayMultiSelectController)
 
 import LeftSidebarController from "./left_sidebar_controller"
 application.register("left-sidebar", LeftSidebarController)
 
-import DailyController from "./daily_controller"
-application.register("daily", DailyController)
+import NightPickerController from "./night_picker_controller"
+application.register("night-picker", NightPickerController)
 
 import ShiftEditController from "./shift_edit_controller"
 application.register("shift-edit", ShiftEditController)
 
-import NightPickerController from "./night_picker_controller"
-application.register("night-picker", NightPickerController)
-
-import UnsavedGuardController from "./unsaved_guard_controller"
-application.register("unsaved-guard", UnsavedGuardController)
-
-import DayoptWdaysController from "./dayopt_wdays_controller"
-application.register("dayopt-wdays", DayoptWdaysController)
+import StatsPeriodController from "./stats_period_controller"
+application.register("stats-period", StatsPeriodController)
 
 import SyncScrollController from "./sync_scroll_controller"
 application.register("sync-scroll", SyncScrollController)
 
-import HolidayMultiSelectController from "./holiday_multi_select_controller"
-application.register("holiday-multi-select", HolidayMultiSelectController)
+import UnsavedGuardController from "./unsaved_guard_controller"
+application.register("unsaved-guard", UnsavedGuardController)

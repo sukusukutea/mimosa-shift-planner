@@ -321,13 +321,56 @@ class ShiftMonthsController < ApplicationController
       return
     end
 
+    if kind == "night" && params[:night_action].blank?
+      existing_nights =
+        @shift_month.shift_day_designations
+                    .where(date: date, shift_kind: :night)
+                    .where.not(staff_id: sid)
+                    .order(:id)
+
+      if existing_nights.count == 1
+        existing_staff = current_user.staffs.find_by(id: existing_nights.first.staff_id)
+
+        flash[:conflict] = {
+          kind: "night_already_exists",
+          staff_id: sid,
+          existing_staff_id: existing_nights.first.staff_id,
+          existing_staff_name: [
+            existing_staff&.last_name,
+            existing_staff&.first_name
+          ].compact.join(" "),
+          date: date.iso8601,
+          shift_kind: "night"
+        }
+
+        redirect_to settings_shift_month_path(
+          @shift_month,
+          tab: "daily",
+          date: date.iso8601,
+          designation_staff_id: sid
+        )
+        return
+      end
+
+      if existing_nights.count >= 2
+        redirect_to settings_shift_month_path(
+          @shift_month,
+          tab: "daily",
+          date: date.iso8601,
+          designation_staff_id: sid
+        ), alert: "この日はすでに夜勤者が2名指定されています。"
+        return
+      end
+    end
+
     holiday = @shift_month.staff_holiday_requests.find_by(date: date, staff_id: sid)
     if !force && holiday.present?
       flash[:conflict] = {
         kind: "designation_over_holiday",
         staff_id: sid,
         date: date.iso8601,
-        shift_kind: kind
+        shift_kind: kind,
+        night_action: params[:night_action].presence
       }
       redirect_to settings_shift_month_path(
         @shift_month,
@@ -385,9 +428,62 @@ class ShiftMonthsController < ApplicationController
           else
             @shift_month.shift_day_designations.create!(date: date, shift_kind: "late", staff_id: sid)
           end
+        elsif kind == "night"
+          existing =
+            @shift_month.shift_day_designations
+                        .where(date: date, shift_kind: :night)
+                        .order(:id)
+
+          # その職員が同じ日に別勤務指定されていたら、
+          # 夜勤へ変更するため既存指定を削除
+          @shift_month.shift_day_designations
+                      .where(date: date, staff_id: sid)
+                      .where.not(shift_kind: :night)
+                      .delete_all
+
+          unless existing.exists?(staff_id: sid)
+            case params[:night_action].to_s
+            when "add"
+              if existing.count < 2
+                @shift_month.shift_day_designations.create!(
+                  date: date,
+                  shift_kind: :night,
+                  staff_id: sid
+                )
+              end
+
+            when "replace"
+              if existing.any?
+                existing.first.update!(staff_id: sid)
+              else
+                @shift_month.shift_day_designations.create!(
+                  date: date,
+                  shift_kind: :night,
+                  staff_id: sid
+                )
+              end
+
+            else
+              # 夜勤がまだ誰もいない場合は、通常どおり1人目を登録
+              if existing.none?
+                @shift_month.shift_day_designations.create!(
+                  date: date,
+                  shift_kind: :night,
+                  staff_id: sid
+                )
+              end
+            end
+          end
+
         else
-          # 早/夜勤は1人だけ：同一日・同一kindを上書き
-          record = @shift_month.shift_day_designations.find_or_initialize_by(date: date, shift_kind: kind)
+          # 早番は1人だけ
+          record =
+            @shift_month.shift_day_designations
+                        .find_or_initialize_by(
+                          date: date,
+                          shift_kind: kind
+                        )
+
           record.staff_id = sid
           record.save!
         end
@@ -731,6 +827,7 @@ end
 
     ensure_default_late_time_option!
     prepare_calendar_page(assignments_hash: @draft)
+    @client_edit_clients = current_user.clients.active.ordered
 
     @holiday_requests_by_date =
       @shift_month.staff_holiday_requests
@@ -751,7 +848,14 @@ end
     kind_str = params.require(:kind).to_s
     holiday_type = params[:holiday_type].presence
     staff_id = params.require(:staff_id).to_i
-    ui_wday  = ShiftMonth.ui_wday(date)
+
+    night_action = params[:night_action].to_s
+    night_slot =
+      if params[:night_slot].present?
+        params[:night_slot].to_i
+      end
+
+    ui_wday = ShiftMonth.ui_wday(date)
 
     staff_day_time_option_id =
       if params.key?(:staff_day_time_option_id) && params[:staff_day_time_option_id].present?
@@ -803,16 +907,75 @@ end
 
     third_day = nil
     affected_days = []
+    night_slot_for_create = nil
 
     ShiftDayAssignment.transaction do
       if kind_str == "night"
-        # 夜勤は「その日1枠」扱い：誰であっても一旦消してから入れ直す（A→B置換対応）
-        scope.where(date: date, shift_kind: :night).delete_all
-        scope.where(date: date, staff_id: staff_id, shift_kind: %i[day early late]).delete_all
+        night_rows =
+          scope.where(date: date, shift_kind: :night).order(:slot, :id)
+
+        case night_action
+        when "add"
+          if night_rows.count >= 2
+            raise ActiveRecord::RecordInvalid.new(
+              @shift_month.shift_day_assignments.new.tap do |row|
+                row.errors.add(:base, "夜勤者は2名までです")
+              end
+            )
+          end
+
+          if night_rows.exists?(staff_id: staff_id)
+            raise ActiveRecord::RecordInvalid.new(
+              @shift_month.shift_day_assignments.new.tap do |row|
+                row.errors.add(:base, "この職員はすでに夜勤に入っています")
+              end
+            )
+          end
+
+          used_slots = night_rows.pluck(:slot).map(&:to_i)
+          night_slot_for_create = ([0, 1] - used_slots).first
+
+        when "replace"
+          target_night =
+            night_rows.find_by(slot: night_slot)
+
+          unless target_night
+            raise ActiveRecord::RecordInvalid.new(
+              @shift_month.shift_day_assignments.new.tap do |row|
+                row.errors.add(:base, "変更する夜勤が見つかりません")
+              end
+            )
+          end
+
+          if night_rows.where.not(id: target_night.id).exists?(staff_id: staff_id)
+            raise ActiveRecord::RecordInvalid.new(
+              @shift_month.shift_day_assignments.new.tap do |row|
+                row.errors.add(:base, "この職員はすでに夜勤に入っています")
+              end
+            )
+          end
+
+          night_slot_for_create = target_night.slot
+          target_night.destroy!
+
+        else
+          # 既存画面からの送信との互換用
+          scope.where(date: date, shift_kind: :night).delete_all
+        end
+
+        scope.where(
+          date: date,
+          staff_id: staff_id,
+          shift_kind: %i[day early late]
+        ).delete_all
 
         next_day = date + 1
-        scope.where(date: next_day, staff_id: staff_id, shift_kind: %i[day early late]).delete_all
 
+        scope.where(
+          date: next_day,
+          staff_id: staff_id,
+          shift_kind: %i[day early late]
+        ).delete_all
       elsif kind_str == "off"
         holiday_type_for_save =
           if %w[requested_off paid_leave].include?(holiday_type)
@@ -821,15 +984,38 @@ end
             nil
           end
 
-        # まず、その職員の当日勤務を全部外す
-        scope.where(date: date, staff_id: staff_id, shift_kind: %i[day early late night]).delete_all
+        if night_action == "remove"
+          # 指定された夜勤枠の1人だけ外す
+          target_night =
+            scope.find_by(
+              date: date,
+              shift_kind: :night,
+              slot: night_slot
+            )
 
-        # 「夜勤なし」はstaff_idは0で来るため、当日nightに入っている職員をDBから拾う
-        night_row = scope.find_by(date: date, shift_kind: :night)
-        night_staff_id = night_row&.staff_id
+          unless target_night
+            raise ActiveRecord::RecordInvalid.new(
+              @shift_month.shift_day_assignments.new.tap do |row|
+                row.errors.add(:base, "削除する夜勤が見つかりません")
+              end
+            )
+          end
 
-        # nightを消す
-        scope.where(date: date, shift_kind: :night).delete_all
+          night_staff_id = target_night.staff_id
+          target_night.destroy!
+        else
+          # 従来のoff処理
+          scope.where(
+            date: date,
+            staff_id: staff_id,
+            shift_kind: %i[day early late night]
+          ).delete_all
+
+          night_row = scope.find_by(date: date, shift_kind: :night)
+          night_staff_id = night_row&.staff_id
+
+          scope.where(date: date, shift_kind: :night).delete_all
+        end
 
         if night_staff_id.present?
           # 当日・翌日・3日目（3日目は月内だけ）を「日勤」に入れ直す
@@ -898,8 +1084,14 @@ end
 
       if kind_str != "off"
         kind = kind_str.to_sym
-        max_slot = scope.where(date: date, shift_kind: kind).maximum(:slot)
-        slot = max_slot.to_i + 1
+
+        slot =
+          if kind == :night && !night_slot_for_create.nil?
+            night_slot_for_create
+          else
+            max_slot = scope.where(date: date, shift_kind: kind).maximum(:slot)
+            max_slot.to_i + 1
+          end
 
         day_opt_id =
           if kind == :day
@@ -969,13 +1161,79 @@ end
     @stats_rows = ShiftDrafts::StatsBuilder.new(
       shift_month: @shift_month,
       staff_by_id: @staff_by_id,
-      draft: @draft
+      draft: @draft,
+      carry_over_state: @carry_over_state
     ).call
+
+    # 右サイドバー用：手修正後も週ごとの勤務集計を作り直す
+    prev_month_date = month_begin.prev_month
+
+    prev_shift_month =
+      @shift_month.user.shift_months.find_by(
+        year: prev_month_date.year,
+        month: prev_month_date.month
+      )
+
+    previous_stats_assignments =
+      if prev_shift_month.present?
+        prev_shift_month.shift_day_assignments
+                        .confirmed
+                        .where(
+                          date: (calendar_begin - 1)...month_begin
+                        )
+      else
+        ShiftDayAssignment.none
+      end
+
+    previous_stats_hash =
+      build_assignments_hash(previous_stats_assignments)
+
+    # 前月部分は確定シフトを優先する
+    stats_assignments_hash =
+      @draft.merge(previous_stats_hash)
+
+    weeks = dates.each_slice(7).to_a
+
+    @stats_periods = [
+      {
+        key: "month",
+        label: "月全体",
+        stats_rows: @stats_rows
+      }
+    ]
+
+    weeks.each_with_index do |week, index|
+      week_dates =
+        week.select do |week_date|
+          week_date <= month_end
+        end
+
+      next if week_dates.empty?
+
+      week_stats_rows =
+        ShiftDrafts::StatsBuilder.new(
+          shift_month: @shift_month,
+          staff_by_id: @staff_by_id,
+          draft: stats_assignments_hash,
+          dates: week_dates,
+          check_shortages: false
+        ).call
+
+      @stats_periods << {
+        key: "week_#{index + 1}",
+        label: "第#{index + 1}週 #{week_dates.first.month}/#{week_dates.first.day}〜#{week_dates.last.month}/#{week_dates.last.day}",
+        stats_rows: week_stats_rows
+      }
+    end
 
     stats_html = render_to_string(
       partial: "shift_months/draft_sidebar",
       formats: [ :html ],
-      locals: { stats_rows: @stats_rows, shift_month: @shift_month }
+      locals: {
+        stats_rows: @stats_rows,
+        stats_periods: @stats_periods,
+        shift_month: @shift_month
+      }
     )
 
     enabled_maps = @shift_month.enabled_map_for_range(dates)
@@ -1022,7 +1280,7 @@ end
     designations_by_date = Hash.new { |h, k| h[k] = {} }
     designations.each do |d|
       kind = d.shift_kind.to_s
-      if kind == "day" || kind == "late"
+      if %w[day late night].include?(kind)
         (designations_by_date[d.date][kind] ||= []) << d.staff_id
       else
         designations_by_date[d.date][kind] = d.staff_id
@@ -1240,7 +1498,7 @@ end
     service_kind = params[:client_service_kind].to_s
 
     unless %w[day_service visit stay].include?(service_kind)
-      redirect_to settings_shift_month_path(@shift_month, side: "client", client_id: client.id),
+      redirect_to client_schedule_return_path(client_id: client.id),
                   alert: "予定種別が不正です。"
       return
     end
@@ -1253,35 +1511,37 @@ end
 
     month_begin = Date.new(@shift_month.year, @shift_month.month, 1)
     month_end = month_begin.end_of_month
-    dates = dates.select { |date| date.between?(month_begin, month_end) }.uniq.sort
+
+    dates =
+      dates
+        .select { |date| date.between?(month_begin, month_end) }
+        .uniq
+        .sort
 
     if service_kind == "stay" && !consecutive_dates?(dates)
-      redirect_to settings_shift_month_path(
-        @shift_month,
-        side: "client",
+      redirect_to client_schedule_return_path(
         client_id: client.id,
-        client_service_kind: service_kind
+        service_kind: service_kind
       ), alert: "泊まりは、連続した日付を2日以上選択してください。"
       return
     end
 
     if dates.blank?
-      redirect_to settings_shift_month_path(
-        @shift_month,
-        side: "client",
+      redirect_to client_schedule_return_path(
         client_id: client.id,
-        client_service_kind: service_kind
+        service_kind: service_kind
       ), alert: "日付を選択してください。"
       return
     end
 
     ActiveRecord::Base.transaction do
       dates.each do |date|
-        schedule = @shift_month.shift_month_client_schedules.find_or_initialize_by(
-          client: client,
-          date: date,
-          service_kind: service_kind
-        )
+        schedule =
+          @shift_month.shift_month_client_schedules.find_or_initialize_by(
+            client: client,
+            date: date,
+            service_kind: service_kind
+          )
 
         next if schedule.persisted? && schedule.active?
 
@@ -1294,17 +1554,70 @@ end
       sync_night_styles! if service_kind == "stay"
     end
 
-    redirect_to settings_shift_month_path(
-      @shift_month,
-      side: "client",
-      client_id: client.id,
-      client_service_kind: service_kind
-    ), notice: "利用者予定を追加しました。"
+    if request.format.json?
+      build_calendar_vars
+
+      updated_dates =
+        if service_kind == "stay"
+          month_begin.upto(month_end).to_a
+        else
+          [dates.first]
+        end
+
+      cells = updated_dates.each_with_object({}) do |updated_date, hash|
+        client_schedule = @client_schedules_by_date[updated_date] || {}
+
+        day_service_rows = Array(client_schedule["day_service"])
+        stay_rows = Array(client_schedule["stay"])
+        visit_rows = Array(client_schedule["visit"])
+        has_stay = stay_rows.any?
+
+        hash[updated_date.iso8601] = render_to_string(
+          partial: "shift_months/client_schedule_cells/edit",
+          formats: [:html],
+          locals: {
+            day_service_rows: day_service_rows,
+            stay_rows: stay_rows,
+            visit_rows: visit_rows,
+            has_stay: has_stay,
+            date: updated_date,
+            shift_month: @shift_month,
+            client_edit_clients: current_user.clients.active.ordered
+          }
+        )
+      end
+
+      first_date = dates.first
+
+      night_enabled_by_date =
+        month_begin.upto(month_end).each_with_object({}) do |date, hash|
+          hash[date.iso8601] = !!@night_enabled_by_date[date]
+        end
+
+      render json: {
+        ok: true,
+        date: first_date.iso8601,
+        cell_html: cells[first_date.iso8601],
+        cells: cells,
+        night_enabled_by_date: night_enabled_by_date
+      }
+    elsif params[:return_to] == "edit_draft"
+      redirect_to client_schedule_return_path(
+        client_id: client.id,
+        service_kind: service_kind
+      )
+    else
+      redirect_to client_schedule_return_path(
+        client_id: client.id,
+        service_kind: service_kind
+      ), notice: "利用者予定を追加しました。"
+    end
+
   rescue ActiveRecord::RecordNotFound
-    redirect_to settings_shift_month_path(@shift_month, side: "client"),
+    redirect_to client_schedule_return_path,
                 alert: "利用者が見つかりません。"
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to settings_shift_month_path(@shift_month, side: "client"),
+    redirect_to client_schedule_return_path,
                 alert: "利用者予定の追加に失敗しました：#{e.record.errors.full_messages.join(", ")}"
   end
 
@@ -1319,13 +1632,22 @@ end
     first_schedule = schedules.order(:date, :id).first
 
     if first_schedule.blank?
-      redirect_to settings_shift_month_path(@shift_month, side: "client"),
-                  alert: "利用者予定が見つかりません。"
+      if request.format.json?
+        render json: {
+          ok: false,
+          error: "利用者予定が見つかりません。"
+        }, status: :not_found
+      else
+        redirect_to settings_shift_month_path(@shift_month, side: "client"),
+                    alert: "利用者予定が見つかりません。"
+      end
+
       return
     end
 
     client_id = first_schedule.client_id
     service_kind = first_schedule.service_kind
+    updated_date = first_schedule.date
 
     ActiveRecord::Base.transaction do
       schedules.update_all(
@@ -1337,12 +1659,62 @@ end
       sync_night_styles! if service_kind == "stay"
     end
 
-    redirect_to settings_shift_month_path(
-      @shift_month,
-      side: "client",
-      client_id: client_id,
-      client_service_kind: service_kind
-    ), notice: "利用者予定を削除しました。"
+    if request.format.json?
+      build_calendar_vars
+
+      month_begin = Date.new(@shift_month.year, @shift_month.month, 1)
+      month_end = month_begin.end_of_month
+
+      updated_dates =
+        if service_kind == "stay"
+          month_begin.upto(month_end).to_a
+        else
+          [updated_date]
+        end
+
+      cells = updated_dates.each_with_object({}) do |date, hash|
+        client_schedule = @client_schedules_by_date[date] || {}
+
+        day_service_rows = Array(client_schedule["day_service"])
+        stay_rows = Array(client_schedule["stay"])
+        visit_rows = Array(client_schedule["visit"])
+        has_stay = stay_rows.any?
+
+        hash[date.iso8601] = render_to_string(
+          partial: "shift_months/client_schedule_cells/edit",
+          formats: [:html],
+          locals: {
+            day_service_rows: day_service_rows,
+            stay_rows: stay_rows,
+            visit_rows: visit_rows,
+            has_stay: has_stay,
+            date: date,
+            shift_month: @shift_month,
+            client_edit_clients: current_user.clients.active.ordered
+          }
+        )
+      end
+
+      night_enabled_by_date =
+        month_begin.upto(month_end).each_with_object({}) do |date, hash|
+          hash[date.iso8601] = !!@night_enabled_by_date[date]
+        end
+
+      render json: {
+        ok: true,
+        date: updated_date.iso8601,
+        cell_html: cells[updated_date.iso8601],
+        cells: cells,
+        night_enabled_by_date: night_enabled_by_date
+      }
+    else
+      redirect_to settings_shift_month_path(
+        @shift_month,
+        side: "client",
+        client_id: client_id,
+        client_service_kind: service_kind
+      ), notice: "利用者予定を削除しました。"
+    end
   end
 
   private
@@ -1467,10 +1839,9 @@ end
     @designations_by_date = Hash.new { |h, k| h[k] = {} }
     rows.each do |d|
       kind = d.shift_kind.to_s
-      if kind == "day"
-        (@designations_by_date[d.date]["day"] ||= []) << d.staff_id
-      elsif kind == "late"
-        (@designations_by_date[d.date]["late"] ||= []) << d.staff_id
+
+      if %w[day late night].include?(kind)
+        (@designations_by_date[d.date][kind] ||= []) << d.staff_id
       else
         @designations_by_date[d.date][kind] = d.staff_id
       end
@@ -1571,7 +1942,8 @@ end
           hash[[client_id, schedule.date]] = {
             start_date: range[:start_date],
             end_date: range[:end_date],
-            position: position
+            position: position,
+            schedule_ids: range[:schedules].map(&:id)
           }
         end
       end
@@ -1671,12 +2043,15 @@ end
         schedules_by_date[schedule.date]["stay"] << {
           name: stay_display_name(schedule, stay_info),
           client_id: schedule.client_id,
+          schedule_id: schedule.id,
+          schedule_ids: stay_info[:schedule_ids],
           stay_position: stay_info[:position]
         }
       else
         schedules_by_date[schedule.date][schedule.service_kind] << {
           name: schedule.client_display_name,
           client_id: schedule.client_id,
+          schedule_id: schedule.id,
           source: schedule.source
         }
       end
@@ -1753,6 +2128,68 @@ end
       draft: assignments_hash,
       carry_over_state: @carry_over_state
     ).call
+
+    # 右サイドバー用：月全体＋週ごとの勤務集計
+    prev_month_date = @month_begin.prev_month
+
+    prev_shift_month =
+      @shift_month.user.shift_months.find_by(
+        year: prev_month_date.year,
+        month: prev_month_date.month
+      )
+
+    # 第1週の月曜日が夜勤明けになるケースも拾うため、
+    # カレンダー開始日の前日まで取得する
+    previous_stats_assignments =
+      if prev_shift_month.present?
+        prev_shift_month.shift_day_assignments
+                        .confirmed
+                        .where(
+                          date: (@calendar_begin - 1)...@month_begin
+                        )
+      else
+        ShiftDayAssignment.none
+      end
+
+    previous_stats_hash =
+      build_assignments_hash(previous_stats_assignments)
+
+    stats_assignments_hash =
+      assignments_hash.merge(previous_stats_hash)
+
+    @stats_periods = [
+      {
+        key: "month",
+        label: "月全体",
+        stats_rows: @stats_rows
+      }
+    ]
+
+    @weeks.each_with_index do |week, index|
+      # 第1週は前月部分も含める。
+      # 最終週は翌月部分を含めず、当月末までとする。
+      week_dates =
+        week.select do |date|
+          date <= @month_end
+        end
+
+      next if week_dates.empty?
+
+      week_stats_rows =
+        ShiftDrafts::StatsBuilder.new(
+          shift_month: @shift_month,
+          staff_by_id: @staff_by_id,
+          draft: stats_assignments_hash,
+          dates: week_dates,
+          check_shortages: false
+        ).call
+
+      @stats_periods << {
+        key: "week_#{index + 1}",
+        label: "第#{index + 1}週 #{week_dates.first.month}/#{week_dates.first.day}〜#{week_dates.last.month}/#{week_dates.last.day}",
+        stats_rows: week_stats_rows
+      }
+    end
 
     alert_dates = (@month_begin..@month_end).to_a
     @alerts_by_date = ShiftDrafts::AlertsBuilder.new(
@@ -2241,7 +2678,28 @@ end
     night_dates.merge(designation_night_dates)
 
     # -------------------------
-    # ③ 最終的なON/OFFを保存
+    # ③ 実際に夜勤者がいる日も夜勤ONにする
+    # -------------------------
+    assignment_scope =
+      @shift_month.shift_day_assignments
+                  .where(
+                    shift_kind: :night,
+                    date: month_begin..month_end
+                  )
+
+    draft_token = session[draft_token_session_key]
+
+    assignment_scope =
+      if draft_token.present?
+        assignment_scope.draft.where(draft_token: draft_token)
+      else
+        assignment_scope.confirmed
+      end
+
+    night_dates.merge(assignment_scope.pluck(:date))
+
+    # -------------------------
+    # ④ 最終的なON/OFFを保存
     # -------------------------
     (month_begin..month_end).each do |date|
       setting =
@@ -2261,6 +2719,19 @@ end
 
       style.enabled = should_enable
       style.save!
+    end
+  end
+
+  def client_schedule_return_path(client_id: nil, service_kind: nil)
+    if params[:return_to] == "edit_draft"
+      edit_draft_shift_month_path(@shift_month)
+    else
+      settings_shift_month_path(
+        @shift_month,
+        side: "client",
+        client_id: client_id,
+        client_service_kind: service_kind
+      )
     end
   end
 end
