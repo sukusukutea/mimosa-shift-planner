@@ -157,39 +157,7 @@ export default class extends Controller {
       // 右サイドバー(stats)を更新
       if (data.stats_html) {
         const box = document.getElementById("draft-sidebar")
-
-        if (box) {
-          const currentSelect =
-            box.querySelector('[data-stats-period-target="select"]')
-
-          const selectedPeriod =
-            currentSelect ? currentSelect.value : "month"
-
-          box.innerHTML = data.stats_html
-
-          const newSelect =
-            box.querySelector('[data-stats-period-target="select"]')
-
-          if (newSelect) {
-            const periodExists =
-              Array.from(newSelect.options).some(
-                (option) => option.value === selectedPeriod
-              )
-
-            if (periodExists) {
-              newSelect.value = selectedPeriod
-
-              box.querySelectorAll(
-                '[data-stats-period-target="period"]'
-              ).forEach((period) => {
-                const isSelected =
-                  period.dataset.periodKey === selectedPeriod
-
-                period.classList.toggle("d-none", !isSelected)
-              })
-            }
-          }
-        }
+        if (box) box.innerHTML = data.stats_html
       }
 
       if (data.alerts_html_by_date) {
