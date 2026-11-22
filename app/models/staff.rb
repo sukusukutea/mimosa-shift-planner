@@ -29,7 +29,8 @@ class Staff < ApplicationRecord
   enum :workday_constraint, { free: 0, fixed: 1, weekly: 2 }
   enum :assignment_policy, { candidate: 0, required: 1 }
 
-  before_create :set_initial_calendar_display_order
+  before_save :set_calendar_display_order_for_group,
+            if: -> { new_record? || will_save_change_to_occupation_id? }
 
   def ng_wday?(date)
     return false if date.nil?
@@ -138,9 +139,7 @@ class Staff < ApplicationRecord
 
   private
 
-  def set_initial_calendar_display_order
-    return if calendar_display_order.present?
-
+  def set_calendar_display_order_for_group
     occupation_name = occupation&.name.to_s
 
     group_name =
@@ -150,7 +149,14 @@ class Staff < ApplicationRecord
         "介護"
       end
 
-    return if group_name.nil?
+    # 看護・介護以外へ変更した場合は表示順を持たせない
+    if group_name.nil?
+      self.calendar_display_order = nil
+      return
+    end
+
+    # 新規作成時にすでに順位が指定されていればそのまま使う
+    return if new_record? && calendar_display_order.present?
 
     max_order =
       user.staffs
