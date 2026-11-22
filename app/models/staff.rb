@@ -29,6 +29,8 @@ class Staff < ApplicationRecord
   enum :workday_constraint, { free: 0, fixed: 1, weekly: 2 }
   enum :assignment_policy, { candidate: 0, required: 1 }
 
+  before_create :set_initial_calendar_display_order
+
   def ng_wday?(date)
     return false if date.nil?
 
@@ -132,5 +134,30 @@ class Staff < ApplicationRecord
 
   def counts_toward_weekday_requirements?
     counts_toward_requirements?
+  end
+
+  private
+
+  def set_initial_calendar_display_order
+    return if calendar_display_order.present?
+
+    occupation_name = occupation&.name.to_s
+
+    group_name =
+      if occupation_name.include?("看護")
+        "看護"
+      elsif occupation_name.include?("介護")
+        "介護"
+      end
+
+    return if group_name.nil?
+
+    max_order =
+      user.staffs
+          .joins(:occupation)
+          .where("occupations.name LIKE ?", "%#{group_name}%")
+          .maximum(:calendar_display_order)
+
+    self.calendar_display_order = max_order.to_i + 1
   end
 end

@@ -19,21 +19,54 @@ module ShiftMonthsHelper
   def sorted_staffs_for_row(staff_by_id:, row_key:)
     @__sorted_staffs_by_row_key ||= begin
       staff_by_id.values
-                 .select { |s| s&.active? }
-                 .group_by { |s| row_key_for(s) }
-                 .transform_values do |list|
-                   list.sort_by do |s|
-                     [
-                       s.workday_constraint == "free" ? 0 : 1,
-                       s.last_name_kana.to_s,
-                       s.first_name_kana.to_s,
-                       s.id.to_i
-                     ]
-                   end
-                 end
+                .select { |s| s&.active? }
+                .group_by { |s| row_key_for(s) }
+                .transform_values do |list|
+                  list.sort_by do |s|
+                    key = row_key_for(s)
+
+                    if %i[nurse care].include?(key)
+                      [
+                        s.calendar_display_order.nil? ? 1 : 0,
+                        s.calendar_display_order.to_i,
+                        s.last_name_kana.to_s,
+                        s.first_name_kana.to_s,
+                        s.id.to_i
+                      ]
+                    else
+                      [
+                        s.workday_constraint == "free" ? 0 : 1,
+                        s.last_name_kana.to_s,
+                        s.first_name_kana.to_s,
+                        s.id.to_i
+                      ]
+                    end
+                  end
+                end
     end
 
     @__sorted_staffs_by_row_key[row_key] || []
+  end
+
+  def calendar_staff_sort_key(staff)
+    key = row_key_for(staff)
+
+    if %i[nurse care].include?(key)
+      [
+        staff.calendar_display_order.nil? ? 1 : 0,
+        staff.calendar_display_order.to_i,
+        staff.last_name_kana.to_s,
+        staff.first_name_kana.to_s,
+        staff.id.to_i
+      ]
+    else
+      [
+        staff.workday_constraint == "free" ? 0 : 1,
+        staff.last_name_kana.to_s,
+        staff.first_name_kana.to_s,
+        staff.id.to_i
+      ]
+    end
   end
 
   def alert_badge_class(msg)

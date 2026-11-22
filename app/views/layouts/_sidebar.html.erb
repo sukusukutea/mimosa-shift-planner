@@ -1,5 +1,6 @@
-<% staffs_index_active = current_page?(staffs_path) %>
-<% staffs_new_active   = current_page?(new_staff_path) %>
+<% staffs_index_active         = current_page?(staffs_path) %>
+<% staffs_new_active           = current_page?(new_staff_path) %>
+<% staffs_display_order_active = current_page?(display_order_staffs_path) %>
 
 <% clients_index_active = current_page?(clients_path) %>
 <% clients_new_active   = current_page?(new_client_path) %>
@@ -26,6 +27,12 @@
                     class: "btn btn-outline-secondary btn-sm text-start px-3 d-inline-block",
                     style: "border:1px solid #97cdf3; " +
                           (staffs_new_active ? "background-color:#97cdf3; color:#fff;" : "background-color:#ffffff; color:#333;") %>
+
+        <%= link_to "表示順設定",
+            display_order_staffs_path,
+            class: "btn btn-outline-secondary btn-sm text-start px-3 d-inline-block",
+            style: "border:1px solid #97cdf3; " +
+                  (staffs_display_order_active ? "background-color:#97cdf3; color:#fff;" : "background-color:#ffffff; color:#333;") %>
       </div>
     </div>
 

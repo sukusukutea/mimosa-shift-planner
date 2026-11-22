@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_12_235025) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_22_014056) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -266,6 +266,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_12_235025) do
   create_table "staffs", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.integer "assignment_policy", default: 0, null: false
+    t.integer "calendar_display_order"
     t.boolean "can_cook", default: false, null: false
     t.boolean "can_day", default: false, null: false
     t.boolean "can_drive", default: false, null: false

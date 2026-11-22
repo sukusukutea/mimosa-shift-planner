@@ -69,19 +69,47 @@
   <div class="day-slots">
     <div class="slot slot-day <%= "slot-day-with-admin" if row_key == :nurse && display_month_cell %>">
       <div class="staff-lines-main">
-        <% if row_key == :care && display_month_cell %>
-          <%# 介護だけ：固定順名簿で「勤務 or 休み」を表示 %>
-          <% care_staffs =
-              staff_by_id.values
+        <% if %i[nurse care].include?(row_key) && display_month_cell %>
+          <%# 看護・介護：現在の表示対象は変えず、設定した職員表示順で並べる %>
+
+          <% if row_key == :care %>
+            <% staffs_for_row =
+                staff_by_id.values
                           .select { |s| s && row_key_for(s) == :care }
-                          .sort_by do |s|
-                            [
-                              s.workday_constraint == "free" ? 0 : 1,
-                              s.last_name_kana.to_s,
-                              s.first_name_kana.to_s,
-                              s.id.to_i
-                            ]
-                          end %>
+                          .sort_by { |s| calendar_staff_sort_key(s) } %>
+
+          <% else %>
+            <% assigned_ids =
+                [day_rows, early_rows, late_rows]
+                  .flatten
+                  .map { |row| (row["staff_id"] || row[:staff_id]).to_i }
+                  .select { |id| id > 0 } %>
+
+            <% unassigned_staffs =
+                (unassigned_display_staffs_by_date &&
+                unassigned_display_staffs_by_date[date]) || [] %>
+
+            <% unassigned_ids =
+                unassigned_staffs
+                  .select { |staff| staff && row_key_for(staff) == :nurse }
+                  .map(&:id) %>
+
+            <% display_ids =
+                (
+                  assigned_ids +
+                  unassigned_ids +
+                  Array(night_related_ids).map(&:to_i)
+                ).uniq %>
+
+            <% staffs_for_row =
+                staff_by_id.values
+                          .select do |staff|
+                            staff &&
+                              row_key_for(staff) == :nurse &&
+                              display_ids.include?(staff.id)
+                          end
+                          .sort_by { |s| calendar_staff_sort_key(s) } %>
+          <% end %>
 
           <% assigned_kind_by_id = {} %>
           <% assigned_day_time_option_id_by_id = {} %>
@@ -104,7 +132,7 @@
             <% end %>
           <% end %>
 
-          <% care_staffs.each do |s| %>
+          <% staffs_for_row.each do |s| %>
             <% kind = assigned_kind_by_id[s.id] %>
             <% if kind == :early %>
               <div class="small shift-line"><%= s.last_name %><span class="shift-time">730-1630</span></div>
@@ -268,7 +296,7 @@
           <% end %>
         <% end %>
 
-        <% if !(row_key == :care && display_month_cell) %>
+        <% if !(%i[nurse care].include?(row_key) && display_month_cell) %>
           <% early_rows.each do |row| %>
             <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
             <% staff = staff_by_id[sid] %>

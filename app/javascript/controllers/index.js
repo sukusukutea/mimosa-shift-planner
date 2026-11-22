@@ -34,6 +34,9 @@ application.register("night-picker", NightPickerController)
 import ShiftEditController from "./shift_edit_controller"
 application.register("shift-edit", ShiftEditController)
 
+import StaffDisplayOrderController from "./staff_display_order_controller"
+application.register("staff-display-order", StaffDisplayOrderController)
+
 import StatsPeriodController from "./stats_period_controller"
 application.register("stats-period", StatsPeriodController)
 

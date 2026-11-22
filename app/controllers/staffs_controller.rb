@@ -9,6 +9,65 @@ class StaffsController < ApplicationController
                           .order(:last_name_kana, :first_name_kana) # orderはカナ順の表示
   end
 
+  def display_order
+    @nurse_staffs =
+      current_user.staffs
+                  .active
+                  .joins(:occupation)
+                  .where("occupations.name LIKE ?", "%看護%")
+                  .order(
+                    Arel.sql("calendar_display_order ASC NULLS LAST"),
+                    :last_name_kana,
+                    :first_name_kana,
+                    :id
+                  )
+
+    @care_staffs =
+      current_user.staffs
+                  .active
+                  .joins(:occupation)
+                  .where("occupations.name LIKE ?", "%介護%")
+                  .order(
+                    Arel.sql("calendar_display_order ASC NULLS LAST"),
+                    :last_name_kana,
+                    :first_name_kana,
+                    :id
+                  )
+  end
+
+  def update_display_order
+    nurse_ids = Array(params[:nurse_staff_ids]).map(&:to_i)
+    care_ids  = Array(params[:care_staff_ids]).map(&:to_i)
+
+    nurse_staffs = active_display_order_staffs("看護")
+    care_staffs  = active_display_order_staffs("介護")
+
+    unless valid_display_order_ids?(nurse_ids, nurse_staffs) &&
+          valid_display_order_ids?(care_ids, care_staffs)
+      render json: {
+        ok: false,
+        error: "職員情報が更新されています。ページを再読み込みしてから再度お試しください。"
+      }, status: :unprocessable_entity
+      return
+    end
+
+    ActiveRecord::Base.transaction do
+      save_display_order!("看護", nurse_ids)
+      save_display_order!("介護", care_ids)
+    end
+
+    render json: { ok: true }
+  rescue StandardError => e
+    Rails.logger.error(
+      "職員表示順保存エラー: #{e.class} #{e.message}"
+    )
+
+    render json: {
+      ok: false,
+      error: "表示順の保存に失敗しました。"
+    }, status: :unprocessable_entity
+  end
+
   def new
     @staff = current_user.staffs.build # 入力フォームの受け皿作成
   end
@@ -185,6 +244,57 @@ class StaffsController < ApplicationController
     if remain > 0
       @staff.errors.add(:base, "削除前の置換に失敗しました（参照が#{remain}件残っています）。")
       raise ActiveRecord::Rollback
+    end
+  end
+
+  def active_display_order_staffs(group_name)
+    current_user.staffs
+                .active
+                .joins(:occupation)
+                .where("occupations.name LIKE ?", "%#{group_name}%")
+                .to_a
+  end
+
+  def valid_display_order_ids?(received_ids, staffs)
+    expected_ids = staffs.map(&:id)
+
+    received_ids.uniq.length == received_ids.length &&
+      received_ids.sort == expected_ids.sort
+  end
+
+  def save_display_order!(group_name, ordered_active_ids)
+    all_staffs =
+      current_user.staffs
+                  .joins(:occupation)
+                  .where("occupations.name LIKE ?", "%#{group_name}%")
+                  .order(
+                    Arel.sql("calendar_display_order ASC NULLS LAST"),
+                    :last_name_kana,
+                    :first_name_kana,
+                    :id
+                  )
+                  .to_a
+
+    active_staffs_by_id =
+      all_staffs.select(&:active?).index_by(&:id)
+
+    ordered_active_staffs =
+      ordered_active_ids.map do |staff_id|
+        active_staffs_by_id.fetch(staff_id)
+      end
+
+    active_staffs_enum = ordered_active_staffs.each
+
+    reordered_staffs =
+      all_staffs.map do |staff|
+        staff.active? ? active_staffs_enum.next : staff
+      end
+
+    reordered_staffs.each_with_index do |staff, index|
+      staff.update_columns(
+        calendar_display_order: index + 1,
+        updated_at: Time.current
+      )
     end
   end
 end
