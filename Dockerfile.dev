@@ -1,5 +1,5 @@
 # Ruby のベースイメージを指定
-FROM ruby:3.3.6
+FROM ruby:3.3.14-bookworm
 
 # 環境変数の設定
 ENV LANG C.UTF-8  # 日本語対応
