@@ -8,6 +8,11 @@ Rails.application.routes.draw do
   root to: "pages#home"
   get "dashboard", to: "dashboards#index"
   resources :staffs, only: [ :index, :new, :create, :edit, :update, :destroy ] do
+    collection do
+      get :display_order
+      patch :update_display_order
+    end
+
     member do
       patch :leave
       patch :restore

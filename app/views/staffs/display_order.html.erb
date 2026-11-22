@@ -1,0 +1,126 @@
+<div class="container-fluid">
+  <div class="row min-vh-100 flex-nowrap">
+
+    <%# 左サイドメニュー %>
+    <div class="p-0 flex-shrink-0"
+         style="width: 200px; background-color:#e6f0f0;">
+      <%= render "layouts/sidebar" %>
+    </div>
+
+    <%# メインエリア %>
+    <div class="col-md-9 col-lg-10 py-2"
+         data-controller="staff-display-order"
+         data-staff-display-order-update-url-value="<%= update_display_order_staffs_path %>">
+
+      <div class="mx-auto" style="width: 90%; min-width: 700px;">
+
+        <%# タイトル %>
+        <div class="mb-3">
+          <h1 class="h4 fw-bold mb-2">職員表示順設定</h1>
+
+          <p class="text-muted small mb-0">
+            職員名をドラッグして、シフトカレンダーの表示順を変更してください。
+          </p>
+        </div>
+
+        <%# 看護・介護 %>
+        <div class="d-flex justify-content-center align-items-start flex-wrap"
+             style="gap: 48px;">
+
+          <%# 看護 %>
+          <div class="border rounded-3 p-2"
+               style="width: 360px; min-height: 180px; background-color:#f8f9fa;">
+
+            <h5 class="fw-bold text-center mb-4">看護</h5>
+
+            <div class="d-flex flex-column gap-1 align-items-center"
+                 data-staff-display-order-target="list"
+                 data-group="nurse">
+
+              <% @nurse_staffs.each do |staff| %>
+                <div
+                  class="border rounded bg-white py-2 position-relative"
+                  draggable="true"
+                  data-staff-display-order-target="item"
+                  data-staff-id="<%= staff.id %>"
+                  data-action="
+                    dragstart->staff-display-order#dragStart
+                    dragend->staff-display-order#dragEnd
+                    dragover->staff-display-order#dragOver
+                  "
+                  style="cursor: grab; width: 260px;"
+                >
+                  <span class="text-muted position-absolute"
+                        style="left: 12px;">
+                    ☰
+                  </span>
+
+                  <div class="text-center px-4">
+                    <%= staff.last_name %> <%= staff.first_name %>
+                  </div>
+                </div>
+              <% end %>
+
+            </div>
+          </div>
+
+
+          <%# 介護 %>
+          <div class="border rounded-3 p-2"
+               style="width: 360px; min-height: 180px; background-color:#f8f9fa;">
+
+            <h5 class="fw-bold text-center mb-4">介護</h5>
+
+            <div class="d-flex flex-column gap-1 align-items-center"
+                 data-staff-display-order-target="list"
+                 data-group="care">
+
+              <% @care_staffs.each do |staff| %>
+                <div
+                  class="border rounded bg-white py-2 position-relative"
+                  draggable="true"
+                  data-staff-display-order-target="item"
+                  data-staff-id="<%= staff.id %>"
+                  data-action="
+                    dragstart->staff-display-order#dragStart
+                    dragend->staff-display-order#dragEnd
+                    dragover->staff-display-order#dragOver
+                  "
+                  style="cursor: grab; width: 260px;"
+                >
+                  <span class="text-muted position-absolute"
+                        style="left: 12px;">
+                    ☰
+                  </span>
+
+                  <div class="text-center px-4">
+                    <%= staff.last_name %> <%= staff.first_name %>
+                  </div>
+                </div>
+              <% end %>
+
+            </div>
+          </div>
+
+        </div>
+
+        <%# 保存 %>
+        <div class="d-flex justify-content-end align-items-center gap-3 mt-1"
+             style="max-width: 768px; margin-left:auto; margin-right:auto;">
+
+          <span class="text-success small"
+                data-staff-display-order-target="message"></span>
+
+          <button type="button"
+                  class="btn btn-primary"
+                  disabled
+                  data-staff-display-order-target="saveButton"
+                  data-action="click->staff-display-order#save">
+            保存
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>

@@ -63,19 +63,32 @@
   <div class="day-slots">
     <div class="slot slot-day <%= "slot-day-with-admin" if row_key == :nurse && in_month %>">
       <div class="staff-lines-main">
-        <% if row_key == :care && in_month %>
-          <%# 介護だけ：固定順名簿で「勤務 or 休み」を表示 %>
-          <% care_staffs =
-              staff_by_id.values
-                         .select { |s| s&.active? && row_key_for(s) == :care }
-                         .sort_by do |s|
-                           [
-                             s.workday_constraint == "free" ? 0 : 1,
-                             s.last_name_kana.to_s,
-                             s.first_name_kana.to_s,
-                             s.id.to_i
-                           ]
-                         end %>
+        <% if %i[nurse care].include?(row_key) && in_month %>
+          <%# 看護・介護：現在の表示対象だけを、設定した職員表示順で並べる %>
+
+          <% assigned_ids =
+              [day_rows, early_rows, late_rows]
+                .flatten
+                .map { |row| (row["staff_id"] || row[:staff_id]).to_i }
+                .select { |id| id > 0 } %>
+
+          <% unassigned_staffs =
+              (unassigned_display_staffs_by_date &&
+              unassigned_display_staffs_by_date[date]) || [] %>
+
+          <% unassigned_ids =
+              unassigned_staffs
+                .select { |staff| staff&.active? && row_key_for(staff) == row_key }
+                .map(&:id) %>
+
+          <% display_ids =
+              (assigned_ids + unassigned_ids + Array(night_related_ids).map(&:to_i)).uniq %>
+
+          <% staffs_for_row =
+              sorted_staffs_for_row(
+                staff_by_id: staff_by_id,
+                row_key: row_key
+              ).select { |staff| display_ids.include?(staff.id) } %>
 
           <% assigned_kind_by_id = {} %>
           <% assigned_day_time_option_id_by_id = {} %>
@@ -98,7 +111,7 @@
             <% end %>
           <% end %>
 
-          <% care_staffs.each do |s| %>
+          <% staffs_for_row.each do |s| %>
             <% kind = assigned_kind_by_id[s.id] %>
 
             <% if kind == :early %>
@@ -284,7 +297,7 @@
           <% end %>
         <% end %>
 
-        <% if !(row_key == :care && in_month) %>
+        <% if !(%i[nurse care].include?(row_key) && in_month) %>
           <% early_rows.each do |row| %>
             <% sid = (row["staff_id"] || row[:staff_id]).to_i %>
             <% staff = staff_by_id[sid] %>
